@@ -313,6 +313,7 @@ const CouponManagement = () => {
       showToast("Please enter a coupon name.", "error");
       return;
     }
+    
 
     if (!form.discount_value || Number(form.discount_value) <= 0) {
       showToast("Discount value must be greater than zero.", "error");
@@ -344,6 +345,17 @@ const CouponManagement = () => {
       showToast("Minimum order amount cannot be negative.", "error");
       return;
     }
+
+    if (
+  form.discount_type === "fixed" &&
+  Number(form.discount_value) >= Number(form.min_order_amount)
+) {
+  showToast(
+    "Fixed discount must be lower than the minimum order amount.",
+    "error",
+  );
+  return;
+}
 
     if (form.max_discount && Number(form.max_discount) <= 0) {
       showToast("Maximum discount must be greater than zero.", "error");
