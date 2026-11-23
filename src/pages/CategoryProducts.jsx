@@ -1,5 +1,4 @@
-
-import { AlertCircle, ShoppingBag, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowRight, ShoppingBag } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
@@ -20,6 +19,7 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [busyWishlistId, setBusyWishlistId] = useState(null);
 
   // Fetch products
   useEffect(() => {
@@ -30,22 +30,25 @@ export default function Products() {
       setError("");
 
       try {
-        const response = await api.get("/catalog/products/");
+        const response = await api.get(
+          `/catalog/products/?category=${encodeURIComponent(slug)}`,
+        );
+
         const payload = response.data?.data;
 
-        if (!Array.isArray(payload)) {
+        if (!payload || !Array.isArray(payload.results)) {
           throw new Error("Invalid product response from the server.");
         }
 
         if (active) {
-          setProducts(payload);
+          setProducts(payload.results);
         }
       } catch (err) {
         if (active) {
           setError(
             err.response?.data?.message ??
               err.message ??
-              "Unable to load products. Please try again."
+              "Unable to load products. Please try again.",
           );
         }
       } finally {
@@ -60,23 +63,36 @@ export default function Products() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [slug]);
 
   // Filter products belonging to the selected category
   const categoryProducts = useMemo(
     () =>
       products.filter(
         (product) =>
-          product.is_active &&
-          product.category_detail?.slug === slug
+          product.is_active && product.category_detail?.slug === slug,
       ),
-    [products, slug]
+    [products, slug],
   );
 
   const category = categoryProducts[0]?.category_detail;
 
-  const categoryTitle =
-    category?.title ?? (slug || "").replaceAll("-", " ");
+  const categoryTitle = category?.title ?? (slug || "").replaceAll("-", " ");
+
+  // Variant-based wishlist handler
+  const handleWishlist = async (product, variantId) => {
+    if (!variantId) {
+      throw new Error("Please select an available product option.");
+    }
+
+    setBusyWishlistId(product.id);
+
+    try {
+      await toggleWishlist(variantId);
+    } finally {
+      setBusyWishlistId(null);
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -106,9 +122,7 @@ export default function Products() {
             Unable to load products
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-[#77716c]">
-            {error}
-          </p>
+          <p className="mt-3 text-sm leading-6 text-[#77716c]">{error}</p>
 
           <button
             type="button"
@@ -126,24 +140,18 @@ export default function Products() {
   return (
     <main className="min-h-[70vh] bg-white px-4 py-6 text-[#282421] sm:px-6 sm:py-8 lg:px-10 lg:py-10 xl:px-12">
       <div className="mx-auto w-full max-w-[1440px]">
-
         {/* Breadcrumb */}
         <nav
           className="mb-7 flex flex-wrap items-center gap-2 text-xs capitalize text-[#89817b] sm:mb-9 sm:text-[13px]"
           aria-label="Breadcrumb"
         >
-          <Link
-            to="/"
-            className="transition-colors hover:text-[#282421]"
-          >
+          <Link to="/" className="transition-colors hover:text-[#282421]">
             Home
           </Link>
 
           <span className="text-[#c4bcb4]">/</span>
 
-          <span className="font-medium text-[#282421]">
-            {categoryTitle}
-          </span>
+          <span className="font-medium text-[#282421]">{categoryTitle}</span>
         </nav>
 
         {/* Category Heading */}
@@ -156,21 +164,14 @@ export default function Products() {
             <h1 className="font-serif text-[32px] leading-tight font-normal capitalize tracking-[-0.7px] text-[#282421] sm:text-4xl lg:text-[46px]">
               {categoryTitle}
             </h1>
+
             <div className="flex shrink-0 items-center gap-2 text-xs text-[#77716c] sm:text-sm">
-
-            <span>
-              <span className="">
-                {categoryProducts.length}
-              </span>{" "}
-              product{categoryProducts.length !== 1 ? "s" : ""} available
-            </span>
+              <span>
+                <span>{categoryProducts.length}</span> product
+                {categoryProducts.length !== 1 ? "s" : ""} available
+              </span>
+            </div>
           </div>
-
-
-          </div>
-          
-
-          
         </header>
 
         {/* Empty State */}
@@ -185,8 +186,8 @@ export default function Products() {
             </h2>
 
             <p className="mt-3 max-w-sm text-sm leading-6 text-[#77716c]">
-              There are currently no products available in this category.
-              Please explore our other collections.
+              There are currently no products available in this category. Please
+              explore our other collections.
             </p>
 
             <Link
@@ -204,21 +205,19 @@ export default function Products() {
             aria-label="Category products"
           >
             {categoryProducts.map((product) => {
-              const availableVariants = (
-                product.variants ?? []
-              ).filter(
+              const availableVariants = (product.variants ?? []).filter(
                 (variant) =>
-                  variant.is_available &&
-                  Number(variant.stock) > 0
+                  variant.is_available !== false &&
+                  Number.isFinite(Number(variant.price)) &&
+                  Number(variant.stock) > 0,
               );
 
               const cheapestVariant = availableVariants.reduce(
                 (lowest, variant) =>
-                  !lowest ||
-                  Number(variant.price) < Number(lowest.price)
+                  !lowest || Number(variant.price) < Number(lowest.price)
                     ? variant
                     : lowest,
-                null
+                null,
               );
 
               const price = Number(cheapestVariant?.price ?? 0);
@@ -242,31 +241,46 @@ export default function Products() {
                 discount,
                 rating: Number(product.rating ?? 0),
                 reviewCount: Number(
-                  product.review_count ??
-                    product.reviews?.length ??
-                    0
+                  product.review_count ?? product.reviews?.length ?? 0,
                 ),
                 slug: product.slug,
-                categorySlug:
-                  product.category_detail?.slug || slug,
+                categorySlug: product.category_detail?.slug || slug,
                 badge: "NEW",
+
+                // Variant information
+                variant_id: cheapestVariant?.id ?? null,
+                variantLabel: cheapestVariant
+                  ? `${cheapestVariant.type}: ${cheapestVariant.value}`
+                  : "",
+
                 sourceProduct: product,
               };
+
+              const hasStock = Boolean(cheapestVariant);
+
+              const wished = cheapestVariant
+                ? Boolean(isWishlisted(cheapestVariant.id))
+                : false;
 
               return (
                 <ProductCard
                   key={product.id}
                   product={cardProduct}
-                  isWishlisted={isWishlisted(product.id)}
-                  onToggleWishlist={(item) =>
-                    toggleWishlist(item.id)
+                  isWishlisted={wished}
+                  onToggleWishlist={(variantId) =>
+                    handleWishlist(product, variantId)
                   }
                   onAddToCart={(item) => {
-                    if (cheapestVariant) {
-                      addToCart(cheapestVariant.id, 1);
+                    if (
+                      Number.isInteger(Number(item.variant_id)) &&
+                      item.variant_id != null
+                    ) {
+                      return addToCart(Number(item.variant_id), 1);
                     }
                   }}
-                  disabled={!cheapestVariant}
+                  cartLoading={false}
+                  wishlistLoading={busyWishlistId === product.id}
+                  disabled={!hasStock}
                 />
               );
             })}

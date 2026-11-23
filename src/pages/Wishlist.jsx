@@ -2,6 +2,7 @@ import { Heart, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import Toast from "../components/Toast";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
@@ -18,14 +19,22 @@ export default function Wishlist() {
 
   const [removingItems, setRemovingItems] = useState({});
   const [addingItems, setAddingItems] = useState({});
-  const [messages, setMessages] = useState({});
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  };
+
+  const hideToast = () => {
+    setToast(null);
+  };
 
   const handleRemove = async (item) => {
-    setMessages((current) => ({
-      ...current,
-      [item.id]: "",
-    }));
-
     setRemovingItems((current) => ({
       ...current,
       [item.id]: true,
@@ -33,14 +42,14 @@ export default function Wishlist() {
 
     try {
       await removeWishlistItem(item.id);
+      showToast("Product removed from wishlist successfully.", "success");
     } catch (error) {
-      setMessages((current) => ({
-        ...current,
-        [item.id]:
-          error.response?.data?.message ??
+      showToast(
+        error.response?.data?.message ??
           error.response?.data?.detail ??
           "Unable to remove this product. Please try again.",
-      }));
+        "error",
+      );
     } finally {
       setRemovingItems((current) => ({
         ...current,
@@ -50,24 +59,13 @@ export default function Wishlist() {
   };
 
   const handleAddToCart = async (item) => {
-    setMessages((current) => ({
-      ...current,
-      [item.id]: "",
-    }));
-
     if (!item.variant_id) {
-      setMessages((current) => ({
-        ...current,
-        [item.id]: "No product variant is available.",
-      }));
+      showToast("No product variant is available.", "warning");
       return;
     }
 
     if (Number(item.stock ?? 0) <= 0) {
-      setMessages((current) => ({
-        ...current,
-        [item.id]: "This product is currently out of stock.",
-      }));
+      showToast("This product is currently out of stock.", "warning");
       return;
     }
 
@@ -83,18 +81,14 @@ export default function Wishlist() {
       // Step 2: Remove from wishlist after cart succeeds.
       await removeWishlistItem(item.id);
 
-      setMessages((current) => ({
-        ...current,
-        [item.id]: "Added to cart and removed from wishlist.",
-      }));
+      showToast("Added to cart and removed from wishlist.", "success");
     } catch (error) {
-      setMessages((current) => ({
-        ...current,
-        [item.id]:
-          error.response?.data?.message ??
+      showToast(
+        error.response?.data?.message ??
           error.response?.data?.detail ??
           "Unable to complete this action. Please try again.",
-      }));
+        "error",
+      );
     } finally {
       setAddingItems((current) => ({
         ...current,
@@ -286,19 +280,6 @@ export default function Wishlist() {
                       )}
                   </div>
 
-                  {/* Discount */}
-
-                  {/* Feedback */}
-                  {messages[item.id] && (
-                    <p
-                      className="mt-2 rounded-md border border-[#e8ded3] bg-[#faf7f3] px-2.5 py-2 text-[11px] leading-relaxed text-[#6b5847] sm:text-xs"
-                      role="status"
-                    >
-                      {messages[item.id]}
-                    </p>
-                  )}
-
-                  {/* Add to Cart */}
                   {/* Add to Cart */}
                   <button
                     type="button"
@@ -328,6 +309,15 @@ export default function Wishlist() {
           })}
         </section>
       </div>
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </main>
   );
 }

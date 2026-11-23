@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 
 export default function Category() {
   const [categories, setCategories] = useState([]);

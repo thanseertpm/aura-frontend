@@ -121,13 +121,14 @@ export default function ProductDetailPage() {
   };
 
   // Display toast notifications.
-  const showToast = useCallback((message, type = "success") => {
-    setToast({
-      message,
-      type,
-      duration: 3000,
-    });
-  }, []);
+const showToast = useCallback((message, type = "success") => {
+  setToast({
+    id: Date.now(),
+    message,
+    type,
+    duration: 3000,
+  });
+}, []);
 
   // Close toast notifications.
   const hideToast = useCallback(() => {
@@ -143,9 +144,9 @@ export default function ProductDetailPage() {
   // and preserve the requested action for after login.
   const requireAuthentication = (action) => {
     if (authLoading) {
-      showToast("Please wait while we verify your account.", "error");
-      return false;
-    }
+  showToast("Please wait while we verify your account.", "warning");
+  return false;
+}
 
     if (!isAuthenticated) {
       navigate("/auth", {
@@ -317,22 +318,30 @@ export default function ProductDetailPage() {
       try {
         // Resume wishlist action.
         if (resumeAction.type === "wishlist") {
-          const refreshedWishlist = await refreshWishlist();
-
-          const alreadyWishlisted = (refreshedWishlist?.items ?? []).some(
-            (item) => Number(item.product_id) === Number(product.id),
+          const variant = product.variants?.find(
+            (item) => String(item.id) === String(resumeAction.variantId),
           );
 
-          if (alreadyWishlisted) {
-            showToast("This product is already in your wishlist.", "info");
+          if (!variant || !isVariantAvailable(variant)) {
+            showToast("This product option is no longer available.", "error");
             return;
           }
 
-          await toggleWishlist(product.id);
+          const refreshedWishlist = await refreshWishlist();
 
-          showToast("Added to your wishlist.", "success");
+          const alreadyWishlisted = (refreshedWishlist?.items ?? []).some(
+            (item) => Number(item.variant_id) === Number(variant.id),
+          );
 
-          return; // Stop here. Wishlist does not require a product variant.
+          if (alreadyWishlisted) {
+            showToast("This option is already in your wishlist", "info");
+            return;
+          }
+
+          await toggleWishlist(variant.id);
+
+          showToast("Added to your wishlist", "success");
+          return;
         }
 
         // Find the previously selected variant.
@@ -363,7 +372,7 @@ export default function ProductDetailPage() {
         if (resumeAction.type === "add_to_cart") {
           await addToCart(variant.id, requestedQuantity);
 
-          showToast("Added to cart.", "success");
+          showToast("Added to cart", "success");
         }
 
         // Resume buy-now action.
@@ -446,19 +455,16 @@ export default function ProductDetailPage() {
   const reviewCount = reviews.length;
 
   // Group variants according to their type.
-  const variantGroups = useMemo(() => {
-    const groups = new Map();
+  const variantTypes = useMemo(
+    () => [...new Set(variants.map((variant) => variant.type || "Option"))],
+    [variants],
+  );
 
-    variants.forEach((variant) => {
-      const type = variant.type || "Option";
+  const selectedVariantType = selectedVariant?.type || variantTypes[0] || "";
 
-      if (!groups.has(type)) groups.set(type, []);
-
-      groups.get(type).push(variant);
-    });
-
-    return Array.from(groups.entries());
-  }, [variants]);
+  const availableTypeVariants = variants.filter(
+    (variant) => (variant.type || "Option") === selectedVariantType,
+  );
 
   // ============================================================
   // 8. PRODUCT INTERACTION HANDLERS
@@ -502,12 +508,12 @@ export default function ProductDetailPage() {
 
     try {
       await addToCart(selectedVariant.id, quantity);
-      showToast("Added to cart.", "success");
+      showToast("Added to cart", "success");
     } catch (err) {
       showToast(
         err.response?.data?.message ||
           err.response?.data?.detail ||
-          "Unable to add this item to your cart.",
+          "Unable to add this item to your cart",
         "error",
       );
     } finally {
@@ -522,9 +528,15 @@ export default function ProductDetailPage() {
   const handleWishlist = async () => {
     if (!product) return;
 
+    if (!selectedVariant || !isAvailable) {
+      showToast("Please select an available option.", "error");
+      return;
+    }
+
     if (
       !requireAuthentication({
         type: "wishlist",
+        variantId: selectedVariant.id,
       })
     ) {
       return;
@@ -533,17 +545,17 @@ export default function ProductDetailPage() {
     setUpdatingWishlist(true);
 
     try {
-      await toggleWishlist(product.id);
+      await toggleWishlist(selectedVariant.id);
 
       showToast(
-        wishlisted ? "Removed from wishlist." : "Added to wishlist.",
+        wishlisted ? "Removed from wishlist" : "Added to wishlist",
         "success",
       );
     } catch (err) {
       showToast(
         err.response?.data?.message ||
           err.response?.data?.detail ||
-          "Unable to update your wishlist.",
+          "Unable to update your wishlist",
         "error",
       );
     } finally {
@@ -639,7 +651,7 @@ export default function ProductDetailPage() {
   // 10. FINAL DISPLAY VALUES
   // ============================================================
 
-  const wishlisted = isWishlisted(product.id);
+  const wishlisted = selectedVariant ? isWishlisted(selectedVariant.id) : false;
 
   const selectedMedia = mediaItems.find((item) => item.url === selectedImage);
 
@@ -859,59 +871,99 @@ export default function ProductDetailPage() {
                 11.5. PRODUCT VARIANT SELECTION
             ================================================== */}
 
-            {variantGroups.length > 0 ? (
-              <div className="flex flex-col gap-6">
-                {variantGroups.map(([type, options]) => (
-                  <div key={type} className="min-w-0">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">
-                      <span>
-                        {type}:{" "}
-                        <strong className="font-semibold text-gray-900">
-                          {selectedVariant?.type === type
-                            ? selectedVariant.value
-                            : "Select option"}
-                        </strong>
-                      </span>
-                    </div>
+            {variantTypes.length > 0 ? (
+              <div className="flex flex-col gap-4">
+                {/* Variant Type Selector */}
+                {variantTypes.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label
+                      htmlFor="variant-type"
+                      className="text-xs font-medium text-gray-600"
+                    >
+                      Variant Type:
+                    </label>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {options.map((variant) => {
-                        const available = isVariantAvailable(variant);
-                        const active = String(variant.id) === selectedVariantId;
+                    <select
+                      id="variant-type"
+                      value={selectedVariantType}
+                      onChange={(event) => {
+                        const newType = event.target.value;
 
-                        return (
-                          <button
-                            type="button"
-                            key={variant.id}
-                            className={`relative flex min-h-10 min-w-[43px] items-center justify-center overflow-hidden rounded border px-4 py-2 text-xs font-medium transition ${
-                              active
-                                ? "border-black bg-black text-white"
-                                : available
-                                  ? "border-gray-300 bg-white text-gray-800 hover:border-black"
-                                  : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
-                            }`}
-                            onClick={() => handleVariantSelect(variant)}
-                            disabled={!available}
-                            aria-pressed={active}
-                            title={
-                              available
-                                ? `${variant.value} — ${formatPrice(
-                                    variant.price,
-                                  )}`
-                                : `${variant.value} is out of stock`
-                            }
-                          >
-                            {variant.value || `Option ${variant.id}`}
-
-                            {!available && (
-                              <span className="pointer-events-none absolute left-1 right-1 top-1/2 h-px -rotate-[25deg] bg-gray-400" />
-                            )}
-                          </button>
+                        const firstVariant = variants.find(
+                          (variant) =>
+                            (variant.type || "Option") === newType &&
+                            isVariantAvailable(variant),
                         );
-                      })}
-                    </div>
+
+                        const fallbackVariant = variants.find(
+                          (variant) => (variant.type || "Option") === newType,
+                        );
+
+                        const nextVariant = firstVariant || fallbackVariant;
+
+                        setSelectedVariantId(
+                          nextVariant ? String(nextVariant.id) : "",
+                        );
+
+                        setQuantity(1);
+                      }}
+                      className="min-h-10 rounded border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-900 outline-none focus:border-black"
+                    >
+                      {variantTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ))}
+                )}
+
+                {/* Variant Values */}
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">
+                    <span>
+                      {selectedVariantType}:{" "}
+                      <strong className="font-semibold text-gray-900">
+                        {selectedVariant?.value || "Select option"}
+                      </strong>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {availableTypeVariants.map((variant) => {
+                      const available = isVariantAvailable(variant);
+                      const active = String(variant.id) === selectedVariantId;
+
+                      return (
+                        <button
+                          type="button"
+                          key={variant.id}
+                          className={`relative flex min-h-10 min-w-[43px] items-center justify-center overflow-hidden rounded border px-4 py-2 text-xs font-medium transition ${
+                            active
+                              ? "border-black bg-black text-white"
+                              : available
+                                ? "border-gray-300 bg-white text-gray-800 hover:border-black"
+                                : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
+                          }`}
+                          onClick={() => handleVariantSelect(variant)}
+                          disabled={!available}
+                          aria-pressed={active}
+                          title={
+                            available
+                              ? `${variant.value} — ${formatPrice(variant.price)}`
+                              : `${variant.value} is out of stock`
+                          }
+                        >
+                          {variant.value || `Option ${variant.id}`}
+
+                          {!available && (
+                            <span className="pointer-events-none absolute left-1 right-1 top-1/2 h-px -rotate-[25deg] bg-gray-400" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-gray-500">
@@ -1085,8 +1137,6 @@ export default function ProductDetailPage() {
           {/* Reviews heading */}
           <div className="mb-6  items-center justify-between gap-4">
             <div>
-
-
               <h2 className="text-xl font-bold tracking-tight text-[#171717] sm:text-2xl text-center">
                 Customer Reviews
               </h2>
@@ -1252,14 +1302,15 @@ export default function ProductDetailPage() {
           13. TOAST NOTIFICATIONS
       ======================================================== */}
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          duration={toast.duration}
-          onClose={hideToast}
-        />
-      )}
+{toast && (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    duration={toast.duration}
+    onClose={hideToast}
+  />
+)}
     </main>
   );
 }

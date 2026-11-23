@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import api from "../../services/api";
+import Toast from "../Toast";
+import Confirm from "../Confirm";
 
 const BANNER_ENDPOINTS = {
   list: "/admin/controls/banners/",
@@ -65,9 +67,22 @@ export default function BannerManagement() {
 
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [selectedBanner, setSelectedBanner] = useState(null);
+  const [toast, setToast] = useState(null);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
+  const showToast = useCallback((message, type = "success") => {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  }, []);
 
+  const hideToast = useCallback(() => {
+    setToast(null);
+  }, []);
   const loadBanners = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -220,16 +235,32 @@ export default function BannerManagement() {
     }
   };
 
-  const handleDelete = async (banner) => {
-    if (!window.confirm(`Are you sure you want to delete "${banner.title}"?`)) {
-      return;
-    }
+  // Open delete confirmation
+  const handleDelete = (banner) => {
+    setSelectedBanner(banner);
+  };
 
-    setDeletingId(banner.id);
-    setError("");
+  // Cancel delete
+  const cancelDelete = () => {
+    if (deletingId !== null) return;
+
+    setSelectedBanner(null);
+  };
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!selectedBanner) return;
+
+    const bannerId = selectedBanner.id;
+
+    setDeletingId(bannerId);
 
     try {
-      await api.delete(BANNER_ENDPOINTS.detail(banner.id));
+      await api.delete(BANNER_ENDPOINTS.detail(bannerId));
+
+      setSelectedBanner(null);
+
+      showToast("Banner deleted successfully.");
 
       if (banners.length === 1 && page > 1) {
         setPage((previous) => previous - 1);
@@ -237,7 +268,7 @@ export default function BannerManagement() {
         await loadBanners();
       }
     } catch (err) {
-      setError(getError(err));
+      showToast(getError(err), "error");
     } finally {
       setDeletingId(null);
     }
@@ -249,7 +280,7 @@ export default function BannerManagement() {
   );
 
   return (
-    <div className="space-y-6">
+    <main className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -680,6 +711,31 @@ export default function BannerManagement() {
           </div>
         </div>
       )}
-    </div>
+      {/* Delete Confirmation */}
+      <Confirm
+        open={Boolean(selectedBanner)}
+        title="Delete Banner"
+        message={
+          selectedBanner
+            ? `Are you sure you want to delete "${selectedBanner.title}"? This action cannot be undone.`
+            : ""
+        }
+        confirmText="Delete Banner"
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        loading={deletingId !== null}
+        danger={true}
+      />
+      {/* Toast */}
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
+    </main>
   );
 }

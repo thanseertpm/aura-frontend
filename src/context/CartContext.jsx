@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 import { useAuth } from "./AuthContext";
 
 const CartContext = createContext(null);
@@ -112,9 +112,9 @@ export function CartProvider({ children }) {
   );
 
   const addToWishlist = useCallback(
-    async (productId) => {
+    async (variantId) => {
       const response = await api.post("/user/wishlist/", {
-        product_id: productId,
+        variant_id: variantId,
       });
 
       await refreshWishlist();
@@ -134,24 +134,24 @@ export function CartProvider({ children }) {
   );
 
   const isWishlisted = useCallback(
-    (productId) =>
+    (variantId) =>
       wishlistItems.some(
-        (item) => Number(item.product_id) === Number(productId),
+        (item) => Number(item.variant_id) === Number(variantId),
       ),
     [wishlistItems],
   );
 
   const toggleWishlist = useCallback(
-    async (productId) => {
+    async (variantId) => {
       const existingItem = wishlistItems.find(
-        (item) => Number(item.product_id) === Number(productId),
+        (item) => Number(item.variant_id) === Number(variantId),
       );
 
       if (existingItem) {
         return removeWishlistItem(existingItem.id);
       }
 
-      return addToWishlist(productId);
+      return addToWishlist(variantId);
     },
     [wishlistItems, addToWishlist, removeWishlistItem],
   );

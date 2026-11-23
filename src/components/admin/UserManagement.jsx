@@ -12,9 +12,9 @@ import {
   UserX,
 } from "lucide-react";
 
+import api from "../../services/api";
 import Confirm from "../Confirm";
 import Toast from "../Toast";
-import api, { refreshCSRFToken } from "../../services/api";
 
 // API endpoints
 const ADMIN_ENDPOINTS = {

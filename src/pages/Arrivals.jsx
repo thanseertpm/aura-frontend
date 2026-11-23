@@ -1,3 +1,4 @@
+
 import { AlertCircle, ShoppingBag } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -5,16 +6,33 @@ import { Link } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import { useCart } from "../context/CartContext";
 import api from "../services/api";
+import Toast from "../components/Toast";
 
 const isImageFile = (url = "") =>
   /\.(jpe?g|png|gif|webp|bmp|avif|tiff?)(?:[?#].*)?$/i.test(url);
 
 export default function Arrivals() {
   const { addToCart, toggleWishlist, isWishlisted } = useCart();
+  const [toast, setToast] = useState(null);
+
+function showToast(message, type = "success") {
+  setToast({
+    id: Date.now(),
+    message,
+    type,
+    duration: 3000,
+  });
+}
+
+function hideToast() {
+  setToast(null);
+}
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [busyWishlistId, setBusyWishlistId] = useState(null);
 
   // Fetch new arrivals
   useEffect(() => {
@@ -39,7 +57,9 @@ export default function Arrivals() {
 
         if (active) {
           setProducts(
-            payload.results.filter((product) => product.is_active !== false),
+            payload.results.filter(
+              (product) => product.is_active !== false,
+            ),
           );
         }
       } catch (err) {
@@ -76,24 +96,69 @@ export default function Arrivals() {
     [products],
   );
 
-  // Add product to cart
-  const handleAddToCart = async (product, variant) => {
-    if (!variant) return;
+  // Add selected variant to cart
+const handleAddToCart = async (product, variant) => {
+  if (!variant) {
+    showToast("No available product option.", "warning");
+    return;
+  }
 
+  try {
     await addToCart(variant.id, 1);
-  };
+    showToast("Product added to cart successfully.", "success");
+  } catch (err) {
+    showToast(
+      err.response?.data?.message ??
+        err.response?.data?.detail ??
+        err.message ??
+        "Unable to add this product to your cart.",
+      "error",
+    );
+  }
+};
 
-  // Add or remove product from wishlist
-  const handleWishlist = async (product) => {
-    await toggleWishlist(product.id);
-  };
+  // Add or remove selected variant from wishlist
+const handleWishlist = async (product, variantId) => {
+  if (!variantId) {
+    showToast("No available product option.", "warning");
+    return;
+  }
+
+  const alreadyWishlisted = isWishlisted(variantId);
+
+  setBusyWishlistId(product.id);
+
+  try {
+    await toggleWishlist(variantId);
+
+    showToast(
+      alreadyWishlisted
+        ? "Product removed from wishlist."
+        : "Product added to wishlist.",
+      "success",
+    );
+  } catch (err) {
+    showToast(
+      err.response?.data?.message ??
+        err.response?.data?.detail ??
+        err.message ??
+        "Unable to update your wishlist.",
+      "error",
+    );
+  } finally {
+    setBusyWishlistId(null);
+  }
+};
 
   // Loading state
   if (loading) {
     return (
       <main className="min-h-[70vh] bg-white px-[42px] py-4 text-[#242424] max-[700px]:px-[4%] max-[700px]:py-[25px]">
         <div className="mx-auto w-full max-w-[1440px]">
-          <p className="py-20 text-center text-sm text-[#777]" role="status">
+          <p
+            className="py-20 text-center text-sm text-[#777]"
+            role="status"
+          >
             Discovering our latest arrivals...
           </p>
         </div>
@@ -138,14 +203,15 @@ export default function Arrivals() {
     <main className="min-h-[70vh] bg-white px-[42px] py-4 text-[#242424] max-[700px]:px-[4%] max-[700px]:pb-[50px] max-[700px]:pt-[25px]">
       <div className="mx-auto w-full max-w-[1440px]">
         {/* Page heading */}
-        {/* Page heading */}
         <header className="mb-8 flex flex-col items-start justify-between gap-4 border-b border-[#eaeaea] pb-6 sm:flex-row sm:items-end max-[700px]:mb-6">
           <div>
             <p className="text-[11px] font-semibold tracking-[2px] text-[#8a704d]">
               JUST ARRIVED
             </p>
 
-            <h1 className="my-2 title-font">NEW ARRIVALS</h1>
+            <h1 className="my-2 title-font">
+              NEW ARRIVALS
+            </h1>
 
             <p className="text-sm text-[#777]">
               {newArrivals.length} product
@@ -170,7 +236,9 @@ export default function Arrivals() {
               className="text-[#8a704d]"
             />
 
-            <h2 className="m-0 text-2xl font-medium">No new arrivals yet</h2>
+            <h2 className="m-0 text-2xl font-medium">
+              No new arrivals yet
+            </h2>
 
             <p className="m-0 max-w-[420px] text-sm leading-[1.7] text-[#777]">
               Our latest collection will be available here soon.
@@ -210,6 +278,7 @@ export default function Arrivals() {
                     : lowest,
                 null,
               );
+
               const cheapestAvailableVariant = availableVariants.reduce(
                 (lowest, variant) =>
                   !lowest || Number(variant.price) < Number(lowest.price)
@@ -232,12 +301,19 @@ export default function Arrivals() {
               const files = product.files ?? product.images ?? [];
 
               const imageFiles = files.filter((file) => {
-                const url = file.file ?? file.file_url ?? file.image_url ?? "";
+                const url =
+                  file.file ?? file.file_url ?? file.image_url ?? "";
 
-                return url && file.is_available !== false && isImageFile(url);
+                return (
+                  url &&
+                  file.is_available !== false &&
+                  isImageFile(url)
+                );
               });
 
-              const mainImage = imageFiles.find((file) => file.is_main);
+              const mainImage = imageFiles.find(
+                (file) => file.is_main,
+              );
 
               const productImage =
                 product.main_image ||
@@ -279,10 +355,24 @@ export default function Arrivals() {
                 <div key={product.id} className="min-w-0">
                   <ProductCard
                     product={cardProduct}
-                    isWishlisted={Boolean(isWishlisted(product.id))}
-                    onToggleWishlist={() => handleWishlist(product)}
+                    isWishlisted={
+                      cheapestAvailableVariant
+                        ? Boolean(
+                            isWishlisted(cheapestAvailableVariant.id),
+                          )
+                        : false
+                    }
+                    onToggleWishlist={(variantId) =>
+                      handleWishlist(product, variantId)
+                    }
                     onAddToCart={() =>
-                      handleAddToCart(product, cheapestAvailableVariant)
+                      handleAddToCart(
+                        product,
+                        cheapestAvailableVariant,
+                      )
+                    }
+                    wishlistLoading={
+                      busyWishlistId === product.id
                     }
                     disabled={!hasStock}
                   />
@@ -292,6 +382,15 @@ export default function Arrivals() {
           </section>
         )}
       </div>
+      {toast && (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    duration={toast.duration}
+    onClose={hideToast}
+  />
+)}
     </main>
   );
 }

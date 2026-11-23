@@ -1,8 +1,6 @@
 import {
   AlertCircle,
   BarChart3,
-  Bell,
-  CheckCircle2,
   FolderKanban,
   Image,
   LayoutDashboard,
@@ -20,21 +18,22 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import Toast from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 
 // Admin Components
+import AdminSupport from "../components/admin/AdminSupport";
 import Analytics from "../components/admin/Analytics";
+import BannerManagement from "../components/admin/BannerManagement";
 import CategoryManagement from "../components/admin/CategoryManagement";
 import CouponManagement from "../components/admin/CoupenManagement";
 import Dashboard from "../components/admin/Dashboard";
 import OrderManagement from "../components/admin/OrderManagement";
 import ProductManagement from "../components/admin/ProductManagement";
-import UserManagement from "../components/admin/UserManagement";
 import ReturnManagement from "../components/admin/ReturnManagement";
-import AdminSupport from "../components/admin/AdminSupport";
-import BannerManagement from "../components/admin/BannerManagement";
 import ShopManagement from "../components/admin/ShopManagement";
+import UserManagement from "../components/admin/UserManagement";
 
 /* =========================================================
    ADMIN API ENDPOINTS
@@ -136,6 +135,20 @@ function getError(error) {
 export default function AdminPage() {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [toast, setToast] = useState(null);
+
+  function showToast(message, type = "success") {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  }
+
+  function hideToast() {
+    setToast(null);
+  }
 
   /* =======================================================
      ACCESS CONTROL
@@ -156,10 +169,7 @@ export default function AdminPage() {
      ======================================================= */
 
   const [loggingOut, setLoggingOut] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
-  const [loading, setLoading] = useState(false);
 
   /* =======================================================
      CURRENT PAGE
@@ -220,9 +230,6 @@ export default function AdminPage() {
   function openPage(page) {
     setActivePage(page);
     setSidebarOpen(false);
-
-    setError("");
-    setNotice("");
   }
 
   /* =======================================================
@@ -233,15 +240,13 @@ export default function AdminPage() {
     if (loggingOut) return;
 
     setLoggingOut(true);
-    setError("");
 
     try {
       await logout();
 
       navigate("/auth", { replace: true });
     } catch (err) {
-      console.error("Logout failed:", err);
-      setError(getError(err));
+      showToast(getError(err), "error");
     } finally {
       setLoggingOut(false);
     }
@@ -487,64 +492,18 @@ export default function AdminPage() {
             ================================================= */}
 
         <main className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
-          {/* ERROR MESSAGE */}
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-            >
-              <div className="flex items-start gap-2">
-                <AlertCircle size={17} className="mt-0.5 shrink-0" />
-
-                <span>{error}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setError("")}
-                className="shrink-0 rounded p-1 hover:bg-red-100"
-                aria-label="Dismiss error"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
-
-          {/* SUCCESS MESSAGE */}
-
-          {notice && (
-            <div
-              role="status"
-              className="flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
-            >
-              <div className="flex items-start gap-2">
-                <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
-
-                <span>{notice}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setNotice("")}
-                className="shrink-0 rounded p-1 hover:bg-green-100"
-                aria-label="Dismiss notification"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
-
-          {/* LOADING */}
-
-          {loading && (
-            <div className="flex items-center gap-2 rounded-lg border border-[#eae8e0] bg-white px-4 py-3 text-sm text-[#858276]">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#eae8e0] border-t-[#8c704d]" />
-              Loading data...
-            </div>
-          )}
 
           {/* ACTIVE PAGE */}
+          {toast && (
+            <Toast
+              key={toast.id}
+              message={toast.message}
+              type={toast.type}
+              duration={toast.duration}
+              onClose={hideToast}
+            />
+          )}
 
           {renderPage()}
         </main>

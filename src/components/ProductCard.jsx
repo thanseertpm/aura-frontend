@@ -100,24 +100,34 @@ export default function ProductCard({
   };
 
   const handleWishlist = async () => {
-    if (!requireAuthentication({ type: "wishlist" })) {
+    if (!product.variant_id) {
+      showToast("Please select an available product option.", "error");
+      return;
+    }
+
+    if (
+      !requireAuthentication({
+        type: "wishlist",
+        variantId: product.variant_id,
+      })
+    ) {
       return;
     }
 
     try {
-      await onToggleWishlist?.(product);
+      await onToggleWishlist?.(product.variant_id);
 
       showToast(
         isWishlisted
-          ? `${title} removed from wishlist.`
-          : `${title} added to wishlist.`,
+          ? `${title} removed from wishlist`
+          : `${title} added to wishlist`,
         "success",
       );
     } catch (err) {
       showToast(
         err.response?.data?.message ||
           err.response?.data?.detail ||
-          "Unable to update your wishlist.",
+          "Unable to update your wishlist",
         "error",
       );
     }
@@ -136,12 +146,12 @@ export default function ProductCard({
 
     try {
       await onAddToCart?.(product);
-      showToast(`${title} added to cart.`, "success");
+      showToast(`${title} added to cart`, "success");
     } catch (err) {
       showToast(
         err.response?.data?.message ||
           err.response?.data?.detail ||
-          "Unable to add this item to your cart.",
+          "Unable to add this item to your cart",
         "error",
       );
     }
@@ -299,38 +309,33 @@ export default function ProductCard({
           >
             {title}
           </h3>
-          
         </Link>
 
         {/* Price and cart */}
         <div className="mb-2 flex w-full items-center justify-between gap-2">
-          
           <div className="">
             {variantLabel && (
               <p className="mb-0.5 text-[11px] font-medium text-[#876c4b] sm:text-xs">
                 {variantLabel}
               </p>
             )}
-            <div  className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
               <span
-              className="
+                className="
                 whitespace-nowrap text-[14px] font-bold
                 tracking-[-0.2px] text-[#222]
                 sm:text-[15px]
               "
-            >
-              {formatPrice(numericPrice)}
-            </span>
-            
-
-            {hasDiscount && (
-              <span className="whitespace-nowrap text-[11px] font-normal text-[#999] line-through sm:text-xs">
-                {formatPrice(numericOriginalPrice)}
+              >
+                {formatPrice(numericPrice)}
               </span>
-            )}
-            </div>
 
-            
+              {hasDiscount && (
+                <span className="whitespace-nowrap text-[11px] font-normal text-[#999] line-through sm:text-xs">
+                  {formatPrice(numericOriginalPrice)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Add to cart */}

@@ -17,10 +17,11 @@ import Collections from "./pages/Collections.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Home from "./pages/Home";
 import ProductDetail from "./pages/ProductDetail.jsx";
-import Products from "./pages/Products.jsx";
+import CategoryProducts from "./pages/CategoryProducts.jsx";
 import Wishlist from "./pages/Wishlist.jsx";
 import OrderDetail from "./pages/OrderDetail.jsx";
 import Contact from "./pages/Contact.jsx";
+import About from "./pages/About.jsx";
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -53,11 +54,12 @@ function AppContent() {
 
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/about" element={<About />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/collections" element={<Collections />} />
-        <Route path="/categories/:slug" element={<Products />} />
+        <Route path="/categories/:slug" element={<CategoryProducts />} />
         <Route path="/:categorySlug/:slug" element={<ProductDetail />} />
 
         <Route path="/orders" element={<OrderDetail />} />

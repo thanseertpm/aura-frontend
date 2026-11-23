@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   Eye,
   EyeOff,
   KeyRound,
@@ -16,13 +15,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import GoogleSignInButton from "../components/GoogleSignInButton";
 import { useAuth } from "../context/AuthContext";
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 
 // Django API endpoints
 const SIGNIN_URL = "/accounts/login/";
 const SIGNUP_URL = "/accounts/signup/";
 const SEND_OTP_URL = "/accounts/otp/send/";
-const VERIFY_OTP_URL = "/accounts/otp/verify/";
 const RESET_PASSWORD_URL = "/accounts/password/reset/";
 
 // Reusable password input
@@ -70,99 +68,6 @@ function PasswordField({
   );
 }
 
-// Reusable OTP section
-function OtpSection({
-  purpose,
-  destination,
-  otp,
-  setOtp,
-  otpSent,
-  otpVerified,
-  otpPurpose,
-  countdown,
-  loading,
-  sendOtp,
-  verifyOtp,
-  setMessage,
-}) {
-  const isCurrentPurpose = otpPurpose === purpose && otpSent;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          className="inline-flex min-h-9 items-center justify-center rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
-          type="button"
-          disabled={loading || !destination.trim()}
-          onClick={() => sendOtp(purpose, destination)}
-        >
-          {isCurrentPurpose ? "Send OTP Again" : "Send OTP"}
-        </button>
-
-        {isCurrentPurpose && (
-          <button
-            className="text-xs font-semibold text-indigo-600 transition hover:text-indigo-800 disabled:cursor-not-allowed disabled:text-gray-400"
-            type="button"
-            disabled={loading || countdown > 0}
-            onClick={() => sendOtp(purpose, destination)}
-          >
-            {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
-          </button>
-        )}
-      </div>
-
-      {isCurrentPurpose && (
-        <>
-          <label
-            className="flex min-w-0 flex-col gap-1.5"
-            htmlFor={`otp-${purpose}`}
-          >
-            <span className="text-xs font-semibold text-gray-800">
-              Enter 6-digit OTP
-            </span>
-
-            <span className="flex h-11 items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-3 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
-              <KeyRound size={17} className="shrink-0 text-gray-400" />
-
-              <input
-                id={`otp-${purpose}`}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={otp}
-                placeholder="Enter OTP"
-                required
-                onChange={(event) => {
-                  setOtp(event.target.value.replace(/\D/g, "").slice(0, 6));
-                  setMessage(null);
-                }}
-                className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm tracking-widest text-gray-900 outline-none placeholder:tracking-normal placeholder:text-gray-400 focus:ring-0"
-              />
-            </span>
-          </label>
-
-          <button
-            className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            disabled={loading || otp.length !== 6 || otpVerified}
-            onClick={verifyOtp}
-          >
-            {otpVerified ? (
-              <>
-                <CheckCircle2 size={16} />
-                Email Verified
-              </>
-            ) : (
-              "Verify OTP"
-            )}
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
 // Main authentication component
 export default function Authentication() {
   const { refreshUser } = useAuth();
@@ -183,7 +88,6 @@ export default function Authentication() {
   // OTP fields
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   const [otpPurpose, setOtpPurpose] = useState("signup");
   const [countdown, setCountdown] = useState(0);
 
@@ -214,8 +118,6 @@ export default function Authentication() {
 
     return () => clearTimeout(timer);
   }, [countdown]);
-
-
 
   function showMessage(type, text) {
     setMessage({ type, text });
@@ -262,7 +164,6 @@ export default function Authentication() {
 
     setOtp("");
     setOtpSent(false);
-    setOtpVerified(false);
     setOtpPurpose(null);
     setCountdown(0);
 
@@ -273,6 +174,11 @@ export default function Authentication() {
     setResetStep("email");
 
     setMessage(null);
+
+    setShowLogin(false);
+    setShowSignup(false);
+    setShowNew(false);
+    setShowConfirm(false);
   };
 
   // Send or resend OTP
@@ -303,68 +209,20 @@ export default function Authentication() {
 
       setOtpPurpose(purpose);
       setOtpSent(true);
-      setOtpVerified(false);
       setOtp("");
       setCountdown(30);
 
       if (purpose === "signup") {
-        setSignupStep("otp");
+        setSignupStep("create");
       } else if (purpose === "reset") {
-        setResetStep("otp");
+        setResetStep("password");
       }
 
-      showMessage("success", "OTP sent. Please check your email.");
+      showMessage("success", "OTP sent successfully. Please check your email.");
 
       return true;
     } catch (error) {
       showMessage("error", getErrorMessage(error, "Failed to send OTP."));
-
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Verify OTP
-  async function verifyOtp() {
-    if (!/^\d{6}$/.test(otp)) {
-      showMessage("error", "Enter the 6-digit OTP.");
-      return false;
-    }
-
-    const destination = otpPurpose === "signup" ? email : identifier;
-
-    if (!destination.trim()) {
-      showMessage("error", "Please enter your email address.");
-      return false;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      await api.post(VERIFY_OTP_URL, {
-        email: destination.trim(),
-        otp,
-        purpose: otpPurpose,
-      });
-
-      setOtpVerified(true);
-
-      if (otpPurpose === "signup") {
-        setSignupStep("create");
-      } else if (otpPurpose === "reset") {
-        setResetStep("password");
-      }
-
-      showMessage("success", "Email verified successfully.");
-
-      return true;
-    } catch (error) {
-      setOtpVerified(false);
-
-      showMessage("error", getErrorMessage(error, "Invalid or expired OTP."));
-
       return false;
     } finally {
       setLoading(false);
@@ -383,8 +241,6 @@ export default function Authentication() {
         identifier: identifier.trim(),
         password: loginPassword,
       });
-
-      await refreshCSRFToken();
 
       const loggedInUser = await refreshUser();
 
@@ -424,6 +280,7 @@ export default function Authentication() {
 
     if (loading) return;
 
+    // First step: validate details and send OTP.
     if (signupStep === "email") {
       if (username.trim().length < 3) {
         showMessage("error", "Username must contain at least 3 characters.");
@@ -460,18 +317,10 @@ export default function Authentication() {
       return;
     }
 
-    if (signupStep === "otp") {
-      await verifyOtp();
-      return;
-    }
-
+    // Second step: submit signup details with OTP.
     if (signupStep === "create") {
-      if (!otpVerified) {
-        showMessage(
-          "error",
-          "Please verify your email before creating your account.",
-        );
-        setSignupStep("otp");
+      if (!/^\d{6}$/.test(otp)) {
+        showMessage("error", "Please enter the 6-digit OTP.");
         return;
       }
 
@@ -486,15 +335,20 @@ export default function Authentication() {
           otp,
         });
 
-        await refreshCSRFToken();
+        const registeredUser = await refreshUser();
 
-        switchView("signin");
+        if (!registeredUser) {
+          switchView("signin");
 
-        showMessage("success", "Account created successfully.");
+          showMessage(
+            "error",
+            "Your account was created, but we could not verify your login. Please sign in.",
+          );
 
-        setTimeout(() => {
-          setMessage(null);
-        }, 3100);
+          return;
+        }
+
+        navigate("/", { replace: true });
       } catch (error) {
         showMessage(
           "error",
@@ -512,54 +366,53 @@ export default function Authentication() {
 
     if (loading) return;
 
+    // First step: send reset OTP.
     if (resetStep === "email") {
       await sendOtp("reset", identifier);
       return;
     }
 
-    if (resetStep === "otp") {
-      await verifyOtp();
-      return;
-    }
+    // Second step: reset password with OTP.
+    if (resetStep === "password") {
+      if (!/^\d{6}$/.test(otp)) {
+        showMessage("error", "Please enter the 6-digit OTP.");
+        return;
+      }
 
-    if (!otpVerified || otpPurpose !== "reset") {
-      showMessage("error", "Please verify your OTP first.");
-      return;
-    }
+      if (newPassword.length < 8) {
+        showMessage("error", "Password must contain at least 8 characters.");
+        return;
+      }
 
-    if (newPassword.length < 8) {
-      showMessage("error", "Password must contain at least 8 characters.");
-      return;
-    }
+      if (newPassword !== confirmPassword) {
+        showMessage("error", "Passwords do not match.");
+        return;
+      }
 
-    if (newPassword !== confirmPassword) {
-      showMessage("error", "Passwords do not match.");
-      return;
-    }
+      setLoading(true);
+      setMessage(null);
 
-    setLoading(true);
-    setMessage(null);
+      try {
+        await api.post(RESET_PASSWORD_URL, {
+          email: identifier.trim(),
+          otp,
+          password: newPassword,
+          confirm_password: confirmPassword,
+        });
 
-    try {
-      await api.post(RESET_PASSWORD_URL, {
-        email: identifier.trim(),
-        otp,
-        password: newPassword,
-        confirm_password: confirmPassword,
-      });
+        const accountEmail = identifier.trim();
 
-      const accountEmail = identifier.trim();
+        switchView("signin");
 
-      switchView("signin");
+        setIdentifier(accountEmail);
+        setLoginPassword("");
 
-      setIdentifier(accountEmail);
-      setLoginPassword("");
-
-      showMessage("success", "Password reset successfully. Please sign in.");
-    } catch (error) {
-      showMessage("error", getErrorMessage(error, "Password reset failed."));
-    } finally {
-      setLoading(false);
+        showMessage("success", "Password reset successfully. Please sign in.");
+      } catch (error) {
+        showMessage("error", getErrorMessage(error, "Password reset failed."));
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -744,6 +597,13 @@ export default function Authentication() {
                     value={username}
                     onChange={(event) => {
                       setUsername(event.target.value);
+                      if (signupStep === "create") {
+                        setSignupStep("email");
+                        setOtpSent(false);
+                        setOtp("");
+                        setOtpPurpose(null);
+                        setCountdown(0);
+                      }
                       setMessage(null);
                     }}
                     placeholder="Choose a username"
@@ -769,7 +629,7 @@ export default function Authentication() {
                     onChange={(event) => {
                       setEmail(event.target.value);
                       setOtpSent(false);
-                      setOtpVerified(false);
+
                       setOtp("");
                       setOtpPurpose("signup");
                       setSignupStep("email");
@@ -797,66 +657,74 @@ export default function Authentication() {
               />
 
               {/* Signup OTP */}
-              {otpSent && otpPurpose === "signup" && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label
-                      className="text-xs font-semibold text-gray-800"
-                      htmlFor="signup-otp"
-                    >
-                      Enter 6-digit OTP
-                    </label>
+              {signupStep === "create" &&
+                otpSent &&
+                otpPurpose === "signup" && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        className="text-xs font-semibold text-gray-800"
+                        htmlFor="signup-otp"
+                      >
+                        Enter 6-digit OTP
+                      </label>
 
-                    <button
-                      type="button"
-                      className="shrink-0 text-[11px] font-semibold text-indigo-600 disabled:text-gray-400"
-                      onClick={() => sendOtp(otpPurpose, email)}
-                      disabled={loading || countdown > 0}
-                    >
-                      {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
-                    </button>
+                      <button
+                        type="button"
+                        className="shrink-0 text-[11px] font-semibold text-indigo-600 disabled:text-gray-400"
+                        onClick={() => sendOtp(otpPurpose, email)}
+                        disabled={loading || countdown > 0}
+                      >
+                        {countdown > 0
+                          ? `Resend in ${countdown}s`
+                          : "Resend OTP"}
+                      </button>
+                    </div>
+
+                    <span className="flex h-11 items-center gap-2.5 rounded-lg border border-gray-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
+                      <KeyRound size={17} className="shrink-0 text-gray-400" />
+
+                      <input
+                        id="signup-otp"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={otp}
+                        placeholder="Enter OTP"
+                        required
+                        pattern="[0-9]{6}"
+                        onChange={(event) => {
+                          setOtp(
+                            event.target.value.replace(/\D/g, "").slice(0, 6),
+                          );
+                          setMessage(null);
+                        }}
+                        className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm tracking-widest outline-none placeholder:tracking-normal placeholder:text-gray-400 focus:ring-0"
+                      />
+                    </span>
                   </div>
-
-                  <span className="flex h-11 items-center gap-2.5 rounded-lg border border-gray-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
-                    <KeyRound size={17} className="shrink-0 text-gray-400" />
-
-                    <input
-                      id="signup-otp"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      value={otp}
-                      placeholder="Enter OTP"
-                      required
-                      onChange={(event) => {
-                        setOtp(
-                          event.target.value.replace(/\D/g, "").slice(0, 6),
-                        );
-                        setOtpVerified(false);
-                        setSignupStep("otp");
-                        setMessage(null);
-                      }}
-                      className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm tracking-widest outline-none placeholder:tracking-normal placeholder:text-gray-400 focus:ring-0"
-                    />
-                  </span>
-                </div>
-              )}
+                )}
 
               <Message />
 
               <button
                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-black cursor-pointer px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                 type="submit"
-                disabled={loading || (signupStep === "create" && !otpVerified)}
+                disabled={
+                  loading ||
+                  (resetStep === "password" &&
+                    (otp.length !== 6 ||
+                      newPassword.length < 8 ||
+                      !confirmPassword ||
+                      newPassword !== confirmPassword))
+                }
               >
                 {loading
                   ? "Please wait..."
                   : signupStep === "email"
                     ? "Verify Email"
-                    : signupStep === "otp"
-                      ? "Verify OTP"
-                      : "Create Account"}
+                    : "Create Account"}
 
                 <ArrowRight size={17} />
               </button>
@@ -923,7 +791,7 @@ export default function Authentication() {
                       setIdentifier(event.target.value);
                       setResetStep("email");
                       setOtpSent(false);
-                      setOtpVerified(false);
+
                       setOtp("");
                       setOtpPurpose(null);
                       setCountdown(0);
@@ -937,81 +805,87 @@ export default function Authentication() {
               </label>
 
               {/* Reset OTP */}
-              {resetStep === "otp" && otpSent && otpPurpose === "reset" && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label
-                      className="text-xs font-semibold text-gray-800"
-                      htmlFor="reset-otp"
-                    >
-                      Enter 6-digit OTP
-                    </label>
+              {resetStep === "password" &&
+                otpSent &&
+                otpPurpose === "reset" && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        className="text-xs font-semibold text-gray-800"
+                        htmlFor="reset-otp"
+                      >
+                        Enter 6-digit OTP
+                      </label>
 
-                    <button
-                      type="button"
-                      className="shrink-0 text-[11px] font-semibold text-indigo-600 disabled:text-gray-400"
-                      disabled={loading || countdown > 0}
-                      onClick={() => sendOtp("reset", identifier)}
-                    >
-                      {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
-                    </button>
+                      <button
+                        type="button"
+                        className="shrink-0 text-[11px] font-semibold text-indigo-600 disabled:text-gray-400"
+                        disabled={loading || countdown > 0}
+                        onClick={() => sendOtp("reset", identifier)}
+                      >
+                        {countdown > 0
+                          ? `Resend in ${countdown}s`
+                          : "Resend OTP"}
+                      </button>
+                    </div>
+
+                    <span className="flex h-11 items-center gap-2.5 rounded-lg border border-gray-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
+                      <KeyRound size={17} className="shrink-0 text-gray-400" />
+
+                      <input
+                        id="reset-otp"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={otp}
+                        onChange={(event) => {
+                          setOtp(
+                            event.target.value.replace(/\D/g, "").slice(0, 6),
+                          );
+
+                          setMessage(null);
+                        }}
+                        placeholder="Enter OTP"
+                        required
+                        className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm tracking-widest outline-none placeholder:tracking-normal placeholder:text-gray-400 focus:ring-0"
+                      />
+                    </span>
                   </div>
-
-                  <span className="flex h-11 items-center gap-2.5 rounded-lg border border-gray-200 px-3 transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10">
-                    <KeyRound size={17} className="shrink-0 text-gray-400" />
-
-                    <input
-                      id="reset-otp"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(event) => {
-                        setOtp(
-                          event.target.value.replace(/\D/g, "").slice(0, 6),
-                        );
-                        setOtpVerified(false);
-                        setMessage(null);
-                      }}
-                      placeholder="Enter OTP"
-                      required
-                      className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm tracking-widest outline-none placeholder:tracking-normal placeholder:text-gray-400 focus:ring-0"
-                    />
-                  </span>
-                </div>
-              )}
+                )}
 
               {/* New password fields */}
-              {resetStep === "password" && otpVerified && (
-                <>
-                  <PasswordField
-                    id="new-password"
-                    label="New Password"
-                    value={newPassword}
-                    onChange={(value) => {
-                      setNewPassword(value);
-                      setMessage(null);
-                    }}
-                    visible={showNew}
-                    setVisible={setShowNew}
-                    placeholder="At least 8 characters"
-                  />
+              {resetStep === "password" &&
+                otpSent &&
+                otpPurpose === "reset" && (
+                  <>
+                    <PasswordField
+                      id="new-password"
+                      label="New Password"
+                      value={newPassword}
+                      onChange={(value) => {
+                        setNewPassword(value);
+                        setMessage(null);
+                      }}
+                      visible={showNew}
+                      setVisible={setShowNew}
+                      placeholder="At least 8 characters"
+                    />
 
-                  <PasswordField
-                    id="confirm-password"
-                    label="Confirm New Password"
-                    value={confirmPassword}
-                    onChange={(value) => {
-                      setConfirmPassword(value);
-                      setMessage(null);
-                    }}
-                    visible={showConfirm}
-                    setVisible={setShowConfirm}
-                    placeholder="Re-enter new password"
-                  />
-                </>
-              )}
+                    <PasswordField
+                      id="confirm-password"
+                      label="Confirm New Password"
+                      value={confirmPassword}
+                      onChange={(value) => {
+                        setConfirmPassword(value);
+                        setMessage(null);
+                      }}
+                      visible={showConfirm}
+                      setVisible={setShowConfirm}
+                      placeholder="Re-enter new password"
+                    />
+                  </>
+                )}
 
               <Message />
 
@@ -1020,17 +894,18 @@ export default function Authentication() {
                 type="submit"
                 disabled={
                   loading ||
-                  (resetStep === "otp" && otp.length !== 6) ||
-                  (resetStep === "password" && !otpVerified)
+                  (resetStep === "password" &&
+                    (otp.length !== 6 ||
+                      newPassword.length < 8 ||
+                      !confirmPassword ||
+                      newPassword !== confirmPassword))
                 }
               >
                 {loading
                   ? "Please wait..."
                   : resetStep === "email"
                     ? "Verify Email"
-                    : resetStep === "otp"
-                      ? "Verify OTP"
-                      : "Reset Password"}
+                    : "Reset Password"}
 
                 <ArrowRight size={17} />
               </button>

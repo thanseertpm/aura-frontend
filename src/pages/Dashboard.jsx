@@ -231,7 +231,7 @@ const panelStyles =
   "min-w-0 rounded-xl border border-[#e8e8e8] bg-white p-[clamp(17px,3vw,28px)] mt-2";
 
 function Dashboard() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("orders");
@@ -271,13 +271,14 @@ function Dashboard() {
     previous: null,
   });
 
-  const showToast = useCallback((message, type = "success") => {
-    setToast({
-      message,
-      type,
-      duration: 3000,
-    });
-  }, []);
+const showToast = useCallback((message, type = "success") => {
+  setToast({
+    id: Date.now(),
+    message,
+    type,
+    duration: 3000,
+  });
+}, []);
 
   const hideToast = useCallback(() => {
     setToast(null);
@@ -285,7 +286,7 @@ function Dashboard() {
 
   const username = user?.username ?? user?.name ?? "Customer";
   const email = user?.email ?? "";
-  const avatarLetter = username.trim().charAt(0).toUpperCase() || "?";
+  const avatarLetter = username?.match(/\p{L}/u)?.[0]?.toUpperCase() || "A";
 
   const loadTabData = useCallback(
     async (tab, force = false) => {
@@ -310,11 +311,10 @@ function Dashboard() {
           [tab]: true,
         }));
       } catch (error) {
-        showToast(
+        setPageError(
           error.response?.data?.message ??
             error.response?.data?.detail ??
             `Unable to load your ${tab}. Please try again.`,
-          "error",
         );
       } finally {
         setLoadingTab(false);
@@ -366,11 +366,10 @@ function Dashboard() {
         }
       } catch (error) {
         if (!cancelled) {
-          showToast(
+          setPageError(
             error.response?.data?.message ??
               error.response?.data?.detail ??
               "Unable to load your orders. Please try again.",
-            "error",
           );
         }
       } finally {
@@ -475,7 +474,7 @@ function Dashboard() {
         "success",
       );
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
     } finally {
       setSavingAddress(false);
     }
@@ -489,7 +488,7 @@ function Dashboard() {
       await refreshAddresses();
       showToast("Default address updated successfully.", "success");
     } catch (error) {
-      showToast(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
     }
   };
 
@@ -552,7 +551,6 @@ function Dashboard() {
       await logout();
       navigate("/auth", { replace: true });
     } catch (error) {
-      console.error("Logout failed:", error);
       showToast("Unable to log out. Please try again.", "error");
     } finally {
       setLoggingOut(false);
@@ -866,19 +864,26 @@ function Dashboard() {
                 )}
 
                 {activeTab === "account" && (
-                  <AccountPanel user={user} showToast={showToast} />
+                  <AccountPanel
+                    user={user}
+                    showToast={showToast}
+                    refreshUser={refreshUser}
+                  />
                 )}
               </>
             )}
           </section>
         </div>
       </div>
-      <Toast
-        message={toast?.message}
-        type={toast?.type}
-        duration={toast?.duration}
-        onClose={hideToast}
-      />
+      {toast && (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    duration={toast.duration}
+    onClose={hideToast}
+  />
+)}
       <Confirm
         open={Boolean(selectedReview)}
         title="Delete Review"
@@ -1877,7 +1882,12 @@ function AddressesPanel({
   );
 }
 
-function AccountPanel({ user, showToast }) {
+function AccountPanel({ user, showToast, refreshUser }) {
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [usernamePassword, setUsernamePassword] = useState("");
+  const [savingUsername, setSavingUsername] = useState(false);
+
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordMethod, setPasswordMethod] = useState("current");
 
@@ -1938,12 +1948,15 @@ function AccountPanel({ user, showToast }) {
 
   const validateNewPassword = () => {
     if (newPassword !== confirmPassword) {
-      setError("New password and confirmation do not match.");
+      showToast("New password and confirmation do not match.", "error");
       return false;
     }
 
     if (newPassword.length < 8) {
-      setError("Your new password must contain at least 8 characters.");
+     showToast(
+      "Your new password must contain at least 8 characters.",
+      "error",
+    );
       return false;
     }
 
@@ -2082,9 +2095,57 @@ function AccountPanel({ user, showToast }) {
       setResettingPassword(false);
     }
   };
+  const handleUsernameChange = async (event) => {
+    event.preventDefault();
+
+    const trimmedUsername = newUsername.trim();
+
+    if (trimmedUsername.length < 3) {
+      showToast("Username must contain at least 3 characters.", "error");
+      return;
+    }
+
+    if ([...trimmedUsername].filter((char) => /\p{L}/u.test(char)).length < 3) {
+      showToast(
+        "Username must contain at least 3 alphabetic characters.",
+        "error",
+      );
+      return;
+    }
+
+    if (!usernamePassword) {
+      showToast("Please enter your current password.", "error");
+      return;
+    }
+
+    setSavingUsername(true);
+
+    try {
+      const response = await api.post("/accounts/username/change/", {
+        username: trimmedUsername,
+        current_password: usernamePassword,
+      });
+
+      // Update the authenticated user data in AuthContext.
+      await refreshUser();
+
+      setShowUsernameModal(false);
+      setNewUsername("");
+      setUsernamePassword("");
+
+      showToast(
+        response?.data?.message || "Username updated successfully.",
+        "success",
+      );
+    } catch (err) {
+      showToast(getAccountErrorMessage(err), "error");
+    } finally {
+      setSavingUsername(false);
+    }
+  };
 
   return (
-    <>
+    <div>
       {/* Account information */}
 
       <div className={panelStyles}>
@@ -2099,6 +2160,18 @@ function AccountPanel({ user, showToast }) {
               View your account details and manage your sign-in security.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setNewUsername("");
+              setUsernamePassword("");
+              setShowUsernameModal(true);
+            }}
+            className={`${secondaryButtonStyles} shrink-0 ml-auto`}
+          >
+            <Pencil size={14} />
+            Edit
+          </button>
         </div>
 
         <div className="flex flex-col">
@@ -2156,6 +2229,122 @@ function AccountPanel({ user, showToast }) {
           </button>
         </div>
       </div>
+
+      {/* Change username modal */}
+
+      {showUsernameModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/50 p-3 backdrop-blur-[2px] sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingUsername) {
+              setShowUsernameModal(false);
+              setNewUsername("");
+              setUsernamePassword("");
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="username-modal-title"
+            className="my-auto w-full max-w-[440px] overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-[0_20px_70px_rgba(0,0,0,0.18)]"
+          >
+            {/* Modal header */}
+
+            <div className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] px-5 py-4 sm:px-6">
+              <div>
+                <h3
+                  id="username-modal-title"
+                  className="text-[17px] font-bold text-[#171717]"
+                >
+                  Edit username
+                </h3>
+
+                <p className="mt-1 text-xs text-[#737373]">
+                  Update your Aura Fashions account username.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUsernameModal(false);
+                  setNewUsername("");
+                  setUsernamePassword("");
+                }}
+                disabled={savingUsername}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[#666] transition-colors hover:bg-[#f3f3f3] hover:text-[#111] disabled:opacity-50"
+                aria-label="Close username modal"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {/* Modal form */}
+
+            <form
+              onSubmit={handleUsernameChange}
+              className="flex flex-col gap-4 p-5 sm:p-6"
+            >
+              <label className={labelStyles}>
+                New username
+                <input
+                  className={inputStyles}
+                  type="text"
+                  value={newUsername}
+                  onChange={(event) => setNewUsername(event.target.value)}
+                  placeholder="Enter your new username"
+                  minLength={3}
+                  maxLength={150}
+                  required
+                  autoComplete="username"
+                />
+                <span className="text-[11px] font-normal leading-relaxed text-[#888]">
+                  Username must contain at least 3 alphabetic characters.
+                </span>
+              </label>
+
+              <label className={labelStyles}>
+                Current password
+                <input
+                  className={inputStyles}
+                  type="password"
+                  value={usernamePassword}
+                  onChange={(event) => setUsernamePassword(event.target.value)}
+                  placeholder="Enter your current password"
+                  required
+                  autoComplete="current-password"
+                />
+              </label>
+
+              <div className="mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  className={secondaryButtonStyles}
+                  onClick={() => {
+                    setShowUsernameModal(false);
+                    setNewUsername("");
+                    setUsernamePassword("");
+                  }}
+                  disabled={savingUsername}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className={primaryButtonStyles}
+                  disabled={
+                    savingUsername || !newUsername.trim() || !usernamePassword
+                  }
+                >
+                  {savingUsername ? "Saving..." : "Save username"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Change password modal */}
 
@@ -2459,7 +2648,7 @@ function AccountPanel({ user, showToast }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

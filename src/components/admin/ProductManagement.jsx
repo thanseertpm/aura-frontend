@@ -39,7 +39,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import Cropper from "react-easy-crop";
-import api, { refreshCSRFToken } from "../../services/api";
+import api from "../../services/api";
 
 import Confirm from "../Confirm";
 import Toast from "../Toast";
@@ -99,7 +99,10 @@ function generateImageId() {
 
 function getErrorMessage(error, fallback) {
   return (
-    error?.response?.data?.message || error?.response?.data?.detail || fallback
+    error?.response?.data?.data?.title ||
+    error?.response?.data?.message ||
+    error?.response?.data?.detail ||
+    fallback
   );
 }
 
@@ -649,6 +652,17 @@ export default function ProductManagement() {
     setVariantForm((previous) => ({
       ...previous,
       [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleBrandSelect = (event) => {
+    const value = event.target.value;
+
+    if (!value) return;
+
+    setForm((previous) => ({
+      ...previous,
+      brand: value,
     }));
   };
 
@@ -1253,8 +1267,6 @@ export default function ProductManagement() {
 
       await fetchProducts();
     } catch (err) {
-      console.error("Product save failed:", err);
-
       showToast(getErrorMessage(err, "Unable to save product."), "error");
     } finally {
       setSaving(false);
@@ -2133,13 +2145,33 @@ export default function ProductManagement() {
                       Brand
                     </label>
 
-                    <input
-                      name="brand"
-                      value={form.brand}
-                      onChange={handleChange}
-                      placeholder="Enter brand"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
-                    />
+                    {/* SELECT EXISTING BRAND */}
+                    <div className="flex gap-4">
+                      <select
+                        value={
+                          availableBrands.includes(form.brand) ? form.brand : ""
+                        }
+                        onChange={handleBrandSelect}
+                        className="mb-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
+                      >
+                        <option value="">Select existing brand</option>
+
+                        {availableBrands.map((brand) => (
+                          <option key={brand} value={brand}>
+                            {brand}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* BRAND INPUT (auto-filled, still editable) */}
+                      <input
+                        name="brand"
+                        value={form.brand}
+                        onChange={handleChange}
+                        placeholder="Or type a new brand"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
 
                   <div className="sm:col-span-2">

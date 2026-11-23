@@ -1,9 +1,8 @@
-
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -21,11 +20,7 @@ export default function GoogleSignInButton() {
     let cancelled = false;
 
     const initializeGoogle = () => {
-      if (
-        cancelled ||
-        !buttonRef.current ||
-        !window.google?.accounts?.id
-      ) {
+      if (cancelled || !buttonRef.current || !window.google?.accounts?.id) {
         return;
       }
 
@@ -40,30 +35,23 @@ export default function GoogleSignInButton() {
 
           try {
             // Obtain CSRF cookie/token before the login POST.
-            await refreshCSRFToken();
 
             // Send Google's ID token to Django.
             await api.post("/accounts/google/", {
               credential: response.credential,
             });
 
-            // Refresh CSRF after Django establishes the session.
-            await refreshCSRFToken();
-
             // Read the authenticated Django session.
             const loggedInUser = await refreshUser();
 
             if (!loggedInUser) {
               throw new Error(
-                "Google login succeeded, but session verification failed."
+                "Google login succeeded, but session verification failed.",
               );
             }
 
             // Redirect staff and superusers to admin.
-            if (
-              loggedInUser.is_staff ||
-              loggedInUser.is_superuser
-            ) {
+            if (loggedInUser.is_staff || loggedInUser.is_superuser) {
               navigate("/admin/controls", {
                 replace: true,
               });
@@ -79,10 +67,8 @@ export default function GoogleSignInButton() {
                 `${from.pathname}${from.search || ""}${from.hash || ""}`,
                 {
                   replace: true,
-                  state: resumeAction
-                    ? { resumeAction }
-                    : null,
-                }
+                  state: resumeAction ? { resumeAction } : null,
+                },
               );
             } else {
               navigate("/", { replace: true });
@@ -94,9 +80,9 @@ export default function GoogleSignInButton() {
 
             setError(
               data?.message ||
-              data?.error ||
-              err.message ||
-              "Google sign-in failed. Please try again."
+                data?.error ||
+                err.message ||
+                "Google sign-in failed. Please try again.",
             );
           } finally {
             setLoading(false);
@@ -106,17 +92,14 @@ export default function GoogleSignInButton() {
 
       buttonRef.current.innerHTML = "";
 
-      window.google.accounts.id.renderButton(
-        buttonRef.current,
-        {
-          theme: "outline",
-          size: "large",
-          shape: "rectangular",
-          text: "continue_with",
-          width: 320,
-          logo_alignment: "left",
-        }
-      );
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        theme: "outline",
+        size: "large",
+        shape: "rectangular",
+        text: "continue_with",
+        width: 320,
+        logo_alignment: "left",
+      });
     };
 
     if (window.google?.accounts?.id) {
@@ -142,15 +125,10 @@ export default function GoogleSignInButton() {
 
   return (
     <div className="w-full">
-      <div
-        ref={buttonRef}
-        className=""
-      />
+      <div ref={buttonRef} className="" />
 
       {loading && (
-        <p className="text-sm text-gray-500">
-          Signing in with Google...
-        </p>
+        <p className="text-sm text-gray-500">Signing in with Google...</p>
       )}
 
       {error && (

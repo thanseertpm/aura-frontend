@@ -1,10 +1,11 @@
+
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import Toast from "../components/Toast";
 import { useCart } from "../context/CartContext";
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 import ProductCard from "./ProductCard";
 
 const getPayload = (response) => {
@@ -124,49 +125,33 @@ export default function NewArrivals() {
     };
   }, [showToast]);
 
-  // Add product to cart
+  // Add selected variant to cart
   const handleAddToCart = async (product) => {
     const variant = getAvailableVariant(product);
 
     if (!variant) {
-      return;
+      throw new Error("No available product option.");
     }
 
     setBusyCartId(product.id);
 
     try {
       await addToCart(variant.id, 1);
-    } catch (err) {
-      showToast(
-        err.response?.status === 401
-          ? "Please sign in to add items to your cart."
-          : (err.response?.data?.message ??
-              err.response?.data?.detail ??
-              "Unable to add this product to your cart."),
-        "error",
-      );
     } finally {
       setBusyCartId(null);
     }
   };
 
-  // Add or remove product from wishlist
-  const handleWishlist = async (product) => {
-    const wasWishlisted = isWishlisted(product.id);
+  // Add or remove selected variant from wishlist
+  const handleWishlist = async (product, variantId) => {
+    if (!variantId) {
+      throw new Error("No available product option.");
+    }
 
     setBusyWishlistId(product.id);
 
     try {
-      await toggleWishlist(product.id);
-    } catch (err) {
-      showToast(
-        err.response?.status === 401
-          ? "Please sign in to manage your wishlist."
-          : (err.response?.data?.message ??
-              err.response?.data?.detail ??
-              "Unable to update your wishlist."),
-        "error",
-      );
+      await toggleWishlist(variantId);
     } finally {
       setBusyWishlistId(null);
     }
@@ -177,7 +162,7 @@ export default function NewArrivals() {
       <section
         id="new-arrivals"
         aria-labelledby="new-arrivals-title"
-        className="w-full bg-white px-4 py-7 text-[#242424] sm:px-11 sm:py-8 lg:py-9 "
+        className="w-full bg-white px-4 py-7 text-[#242424] sm:px-11 sm:py-8 lg:py-9"
       >
         {/* Section heading */}
         <div className="mb-5 flex items-end justify-between gap-3 sm:mb-6">
@@ -242,6 +227,9 @@ export default function NewArrivals() {
                 categorySlug: product.category_detail?.slug,
                 badge: "NEW",
                 variant_id: variant?.id,
+                variantLabel: variant
+                  ? `${variant.type ?? ""}${variant.value ? ` : ${variant.value}` : ""}`
+                  : "",
                 sourceProduct: product,
               };
 
@@ -249,8 +237,12 @@ export default function NewArrivals() {
                 <div key={product.id} className="min-w-0">
                   <ProductCard
                     product={cardProduct}
-                    isWishlisted={isWishlisted(product.id)}
-                    onToggleWishlist={() => handleWishlist(product)}
+                    isWishlisted={
+                      variant ? isWishlisted(variant.id) : false
+                    }
+                    onToggleWishlist={(variantId) =>
+                      handleWishlist(product, variantId)
+                    }
                     onAddToCart={() => handleAddToCart(product)}
                     cartLoading={busyCartId === product.id}
                     wishlistLoading={busyWishlistId === product.id}

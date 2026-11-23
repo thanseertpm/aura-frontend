@@ -1,13 +1,12 @@
-import { useState } from "react";
 import {
   ArrowRight,
   Clock,
+  LoaderCircle,
   Mail,
   MapPin,
   Phone,
-  LoaderCircle,
-  CheckCircle2,
 } from "lucide-react";
+import { useState } from "react";
 import api from "../services/api";
 
 const topics = [
@@ -66,8 +65,18 @@ export default function Contact() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  };
+
+  const hideToast = () => setToast(null);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -80,14 +89,13 @@ export default function Contact() {
     e.preventDefault();
 
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       const response = await api.post("/user/contact/", form);
 
-      setSuccess(
-        response.data.message || "Your message has been sent successfully."
+      showToast(
+        response.data.message || "Your message has been sent successfully.",
+        "success",
       );
 
       setForm({
@@ -98,9 +106,12 @@ export default function Contact() {
         message: "",
       });
     } catch (err) {
-      setError(
+      showToast(
         err.response?.data?.message ||
-          "Unable to send your message. Please try again."
+          err.response?.data?.detail ||
+          err.message ||
+          "Unable to send your message. Please try again.",
+        "error",
       );
     } finally {
       setLoading(false);
@@ -169,7 +180,8 @@ export default function Contact() {
             {/* PHONE */}
             <div>
               <label className="mb-2 block text-xs font-semibold">
-                Phone <span className="font-normal text-gray-400">(optional)</span>
+                Phone{" "}
+                <span className="font-normal text-gray-400">(optional)</span>
               </label>
 
               <input
@@ -185,9 +197,7 @@ export default function Contact() {
 
             {/* TOPIC */}
             <div>
-              <label className="mb-2 block text-xs font-semibold">
-                Topic
-              </label>
+              <label className="mb-2 block text-xs font-semibold">Topic</label>
 
               <select
                 name="topic"
@@ -222,20 +232,6 @@ export default function Contact() {
               className="w-full resize-y rounded-md border border-gray-300 px-3 py-3 text-sm outline-none transition focus:border-black"
             />
           </div>
-
-          {/* RESPONSE MESSAGES */}
-          {success && (
-            <div className="mt-5 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-700">
-              <CheckCircle2 size={17} />
-              {success}
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-600">
-              {error}
-            </div>
-          )}
 
           {/* SUBMIT */}
           <div className="mt-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
@@ -277,9 +273,9 @@ export default function Contact() {
             </h2>
 
             <p className="mt-3 text-sm leading-6 text-gray-500">
-              Have a question about sizing, our latest drops, order tracking,
-              or styling advice? Our team is here to assist you every step
-              of the way.
+              Have a question about sizing, our latest drops, order tracking, or
+              styling advice? Our team is here to assist you every step of the
+              way.
             </p>
           </div>
 
@@ -296,7 +292,6 @@ export default function Contact() {
                     <div className="rounded-md bg-gray-100 p-3">
                       <Icon size={20} strokeWidth={1.7} />
                     </div>
-
                   </div>
 
                   <div className="mt-5">
@@ -318,7 +313,9 @@ export default function Contact() {
 
                     <a
                       href={card.href}
-                      target={card.href.startsWith("https://") ? "_blank" : undefined}
+                      target={
+                        card.href.startsWith("https://") ? "_blank" : undefined
+                      }
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 text-xs font-semibold transition hover:text-gray-500"
                     >
@@ -332,6 +329,15 @@ export default function Contact() {
           </div>
         </div>
       </section>
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </main>
   );
 }

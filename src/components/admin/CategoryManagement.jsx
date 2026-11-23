@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 import Cropper from "react-easy-crop";
 
+import api from "../../services/api";
 import Confirm from "../Confirm";
 import Toast from "../Toast";
-import api, { refreshCSRFToken } from "../../services/api";
 
 // Admin category API endpoints
 const ADMIN_ENDPOINTS = {
@@ -574,9 +574,9 @@ const CategoryManagement = () => {
       const errorData = error.response?.data;
 
       const message =
+        errorData?.data?.title?.[0] ||
         errorData?.message ||
-        errorData?.title?.[0] ||
-        errorData?.image?.[0] ||
+        errorData?.data?.image?.[0] ||
         "Failed to save category.";
 
       showToast(message, "error");

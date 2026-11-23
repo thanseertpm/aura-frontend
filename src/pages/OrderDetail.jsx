@@ -5,8 +5,8 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  LoaderCircle,
   Loader2,
+  LoaderCircle,
   MapPin,
   Package,
   RotateCcw,
@@ -21,9 +21,9 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import Confirm from "../components/Confirm";
 import Toast from "../components/Toast";
 import api from "../services/api";
-
 /* =========================================
    HELPERS
 ========================================= */
@@ -136,6 +136,7 @@ const getOrderTrackingDate = (status, order) => {
 
 const OrderDetail = () => {
   const [searchParams] = useSearchParams();
+  const [selectedCancelOrder, setSelectedCancelOrder] = useState(null);
 
   // Order number is used instead of order ID.
   const orderNumber = searchParams.get("order_number");
@@ -155,18 +156,19 @@ const OrderDetail = () => {
 
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
-  const [toast, setToast] = useState({
-    show: false,
-    message: "",
-    type: "success",
-  });
+  const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({
-      show: true,
+      id: Date.now(),
       message,
       type,
+      duration: 3000,
     });
+  };
+
+  const hideToast = () => {
+    setToast(null);
   };
 
   /* =========================================
@@ -190,8 +192,6 @@ const OrderDetail = () => {
 
       setOrder(getPayload(response));
     } catch (error) {
-      console.error("Order fetch error:", error);
-
       setPageError(
         error?.response?.data?.message ||
           "Unable to load order details. Please try again.",
@@ -210,25 +210,23 @@ const OrderDetail = () => {
   ========================================= */
 
   const handleCancelOrder = async () => {
-    if (!order?.can_cancel || actionLoading) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to cancel this order? This action cannot be undone.",
-    );
-
-    if (!confirmed) return;
+    if (
+    !order?.can_cancel ||
+    !selectedCancelOrder ||
+    actionLoading
+  ) {
+    return;
+  }
 
     try {
       setActionLoading(true);
 
       await api.post(`/user/orders/${encodeURIComponent(orderNumber)}/cancel/`);
-
+      setSelectedCancelOrder(null);
       showToast("Your order has been cancelled successfully.");
 
       await fetchOrder();
     } catch (error) {
-      console.error("Cancel order error:", error);
-
       showToast(
         error?.response?.data?.message || "Unable to cancel this order.",
         "error",
@@ -276,8 +274,6 @@ const OrderDetail = () => {
 
       await fetchOrder();
     } catch (error) {
-      console.error("Return request error:", error);
-
       showToast(
         error?.response?.data?.message ||
           "Unable to submit your return request.",
@@ -336,11 +332,12 @@ const OrderDetail = () => {
 
       showToast("Your review has been submitted successfully.");
 
-      closeReviewForm();
+      setSelectedReviewItem(null);
+      setReviewRating(5);
+      setReviewText("");
+
       await fetchOrder();
     } catch (error) {
-      console.error("Review submission error:", error);
-
       showToast(
         error?.response?.data?.message || "Unable to submit your review.",
         "error",
@@ -533,7 +530,7 @@ const OrderDetail = () => {
                       <button
                         type="button"
                         disabled={actionLoading}
-                        onClick={handleCancelOrder}
+                        onClick={() => setSelectedCancelOrder(order)}
                         className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
                       >
                         {actionLoading ? (
@@ -600,12 +597,12 @@ const OrderDetail = () => {
               <div>
                 <p className="text-xs text-gray-500">Delivery Date</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">
-  {order.status === "cancelled"
-    ? "Order cancelled"
-    : order.delivered_at
-      ? formatDate(order.delivered_at)
-      : "Not delivered yet"}
-</p>
+                  {order.status === "cancelled"
+                    ? "Order cancelled"
+                    : order.delivered_at
+                      ? formatDate(order.delivered_at)
+                      : "Not delivered yet"}
+                </p>
               </div>
             </div>
           </div>
@@ -668,40 +665,33 @@ const OrderDetail = () => {
 
                     {/* PRODUCT REVIEW */}
 
-                    
-{order.can_review && (
-  item.has_reviewed ? (
-    <div className="mt-3 flex items-center gap-2">
-
-
-      <div className="flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            size={15}
-            className={
-              star <= item.review_rating
-                ? "fill-yellow-400 text-yellow-400"
-                : "text-gray-300"
-            }
-          />
-        ))}
-      </div>
-
-
-    </div>
-  ) : (
-    <button
-      type="button"
-      onClick={() => openReviewForm(item)}
-      className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 transition hover:text-black"
-    >
-      <Star size={14} />
-      Write a Review
-    </button>
-  )
-)}
-
+                    {order.can_review &&
+                      (item.has_reviewed ? (
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                size={15}
+                                className={
+                                  star <= item.review_rating
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-gray-300"
+                                }
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openReviewForm(item)}
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 transition hover:text-black"
+                        >
+                          <Star size={14} />
+                          Write a Review
+                        </button>
+                      ))}
                   </div>
 
                   <div className="text-left sm:text-right">
@@ -1041,102 +1031,96 @@ const OrderDetail = () => {
 
         {/* RETURN FORM */}
 
-        
-{/* RETURN REQUEST MODAL */}
+        {/* RETURN REQUEST MODAL */}
 
-{showReturnForm && (
-  <div
-    className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 px-4 py-6 backdrop-blur-sm"
-    onMouseDown={(event) => {
-      if (
-        event.target === event.currentTarget &&
-        !actionLoading
-      ) {
-        setShowReturnForm(false);
-      }
-    }}
-  >
-    <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-      {/* MODAL HEADER */}
+        {showReturnForm && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 px-4 py-6 backdrop-blur-sm"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !actionLoading) {
+                setShowReturnForm(false);
+              }
+            }}
+          >
+            <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+              {/* MODAL HEADER */}
 
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-gray-100 p-2">
-            <RotateCcw size={19} className="text-gray-700" />
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg bg-gray-100 p-2">
+                    <RotateCcw size={19} className="text-gray-700" />
+                  </div>
+
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Request a Return
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowReturnForm(false)}
+                  disabled={actionLoading}
+                  className="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-black disabled:opacity-50"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* PRODUCT / ORDER INFORMATION */}
+
+              <p className="mb-4 text-sm leading-relaxed text-gray-500">
+                Please provide a reason for returning your order. Your request
+                will be submitted for review.
+              </p>
+
+              {/* RETURN FORM */}
+
+              <form onSubmit={handleReturnRequest}>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Reason for Return
+                </label>
+
+                <textarea
+                  value={returnReason}
+                  onChange={(event) => setReturnReason(event.target.value)}
+                  rows={4}
+                  maxLength={1000}
+                  placeholder="Please explain why you want to return this order..."
+                  className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-black"
+                  required
+                />
+
+                <p className="mt-1 text-right text-xs text-gray-400">
+                  {returnReason.length}/1000
+                </p>
+
+                {/* MODAL ACTIONS */}
+
+                <div className="mt-5 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {actionLoading && (
+                      <LoaderCircle size={16} className="animate-spin" />
+                    )}
+                    Submit Return Request
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowReturnForm(false)}
+                    disabled={actionLoading}
+                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-
-          <h2 className="text-lg font-semibold text-gray-900">
-            Request a Return
-          </h2>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowReturnForm(false)}
-          disabled={actionLoading}
-          className="rounded-lg p-1 text-gray-500 transition hover:bg-gray-100 hover:text-black disabled:opacity-50"
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* PRODUCT / ORDER INFORMATION */}
-
-      <p className="mb-4 text-sm leading-relaxed text-gray-500">
-        Please provide a reason for returning your order.
-        Your request will be submitted for review.
-      </p>
-
-      {/* RETURN FORM */}
-
-      <form onSubmit={handleReturnRequest}>
-        <label className="mb-2 block text-sm font-medium text-gray-700">
-          Reason for Return
-        </label>
-
-        <textarea
-          value={returnReason}
-          onChange={(event) => setReturnReason(event.target.value)}
-          rows={4}
-          maxLength={1000}
-          placeholder="Please explain why you want to return this order..."
-          className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-black"
-          required
-        />
-
-        <p className="mt-1 text-right text-xs text-gray-400">
-          {returnReason.length}/1000
-        </p>
-
-        {/* MODAL ACTIONS */}
-
-        <div className="mt-5 flex gap-3">
-          <button
-            type="submit"
-            disabled={actionLoading}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
-          >
-            {actionLoading && (
-              <LoaderCircle size={16} className="animate-spin" />
-            )}
-
-            Submit Return Request
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowReturnForm(false)}
-            disabled={actionLoading}
-            className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
-
+        )}
 
         {/* REVIEW MODAL */}
 
@@ -1242,16 +1226,31 @@ const OrderDetail = () => {
 
       {/* TOAST */}
 
-      {toast.show && (
+      {toast && (
         <Toast
+          key={toast.id}
           message={toast.message}
           type={toast.type}
-          onClose={() =>
-            setToast((previous) => ({
-              ...previous,
-              show: false,
-            }))
-          }
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
+
+      {/* CANCEL ORDER CONFIRMATION */}
+
+      {selectedCancelOrder && (
+        <Confirm
+          title="Cancel Order"
+          message={`Are you sure you want to cancel order #${selectedCancelOrder.order_number}? This action cannot be undone.`}
+          confirmText="Cancel Order"
+          onConfirm={handleCancelOrder}
+          onCancel={() => {
+            if (!actionLoading) {
+              setSelectedCancelOrder(null);
+            }
+          }}
+          loading={actionLoading}
+          danger={true}
         />
       )}
     </div>

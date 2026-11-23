@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 
 export default function CategorySection() {
   const [categories, setCategories] = useState([]);

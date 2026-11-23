@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
   FolderKanban,
   IndianRupee,
   Package,
-  PackageX,
-  ShoppingBag,
   RefreshCw,
+  ShoppingBag,
   Users,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-import api, { refreshCSRFToken } from "../../services/api";
+import api from "../../services/api";
 
 // Dashboard API endpoints
 const DASHBOARD_ENDPOINTS = {
@@ -50,78 +49,77 @@ export default function Dashboard({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-const fetchDashboardData = useCallback(async () => {
-  setLoading(true);
-  setError("");
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError("");
 
-  try {
-    const results = await Promise.allSettled([
-      api.get(DASHBOARD_ENDPOINTS.categories),
-      api.get(DASHBOARD_ENDPOINTS.products),
-      api.get(DASHBOARD_ENDPOINTS.users),
-      api.get(DASHBOARD_ENDPOINTS.orders),
-      api.get(DASHBOARD_ENDPOINTS.analytics, {
-        params: { period: "all" },
-      }),
-    ]);
+    try {
+      const results = await Promise.allSettled([
+        api.get(DASHBOARD_ENDPOINTS.categories),
+        api.get(DASHBOARD_ENDPOINTS.products),
+        api.get(DASHBOARD_ENDPOINTS.users),
+        api.get(DASHBOARD_ENDPOINTS.orders),
+        api.get(DASHBOARD_ENDPOINTS.analytics, {
+          params: { period: "all" },
+        }),
+      ]);
 
-    const [
-      categoriesResult,
-      productsResult,
-      usersResult,
-      ordersResult,
-      analyticsResult,
-    ] = results;
+      const [
+        categoriesResult,
+        productsResult,
+        usersResult,
+        ordersResult,
+        analyticsResult,
+      ] = results;
 
-    const categories =
-      categoriesResult.status === "fulfilled"
-        ? unwrapResponse(categoriesResult.value)
-        : { results: [], count: null };
+      const categories =
+        categoriesResult.status === "fulfilled"
+          ? unwrapResponse(categoriesResult.value)
+          : { results: [], count: null };
 
-    const products =
-      productsResult.status === "fulfilled"
-        ? unwrapResponse(productsResult.value)
-        : { results: [], count: null };
+      const products =
+        productsResult.status === "fulfilled"
+          ? unwrapResponse(productsResult.value)
+          : { results: [], count: null };
 
-    const users =
-      usersResult.status === "fulfilled"
-        ? unwrapResponse(usersResult.value)
-        : { results: [], count: null };
+      const users =
+        usersResult.status === "fulfilled"
+          ? unwrapResponse(usersResult.value)
+          : { results: [], count: null };
 
-    const orders =
-      ordersResult.status === "fulfilled"
-        ? unwrapResponse(ordersResult.value)
-        : { results: [], count: null };
+      const orders =
+        ordersResult.status === "fulfilled"
+          ? unwrapResponse(ordersResult.value)
+          : { results: [], count: null };
 
-    const analytics =
-      analyticsResult.status === "fulfilled"
-        ? unwrapResponse(analyticsResult.value)
-        : { data: null };
+      const analytics =
+        analyticsResult.status === "fulfilled"
+          ? unwrapResponse(analyticsResult.value)
+          : { data: null };
 
-    const paidRevenue = analytics.data?.summary?.paid_revenue ?? null;
+      const paidRevenue = analytics.data?.summary?.paid_revenue ?? null;
 
-    setStats({
-      categories: categories.count ?? categories.results.length,
-      products: products.count ?? products.results.length,
-      activeProducts: products.results.filter(
-        (product) => product.is_active
-      ).length,
-      users: users.count ?? users.results.length,
-      orders: orders.count ?? orders.results.length,
-      revenue: paidRevenue,
-    });
+      setStats({
+        categories: categories.count ?? categories.results.length,
+        products: products.count ?? products.results.length,
+        activeProducts: products.results.filter((product) => product.is_active)
+          .length,
+        users: users.count ?? users.results.length,
+        orders: orders.count ?? orders.results.length,
+        revenue: paidRevenue,
+      });
 
-    if (results.every((result) => result.status === "rejected")) {
-      setError(
-        "Unable to load dashboard data. Please check your API endpoints."
-      );
+      if (results.every((result) => result.status === "rejected")) {
+        setError(
+          "Unable to load dashboard data. Please check your API endpoints.",
+        );
+      }
+    } catch (err) {
+      setError("Something went wrong while loading dashboard data.");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError("Something went wrong while loading dashboard data.");
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -173,23 +171,18 @@ const fetchDashboardData = useCallback(async () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Dashboard
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         </div>
 
         <button
-  type="button"
-  onClick={fetchDashboardData}
-  disabled={loading}
-  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
->
-  <RefreshCw
-    size={16}
-    className={loading ? "animate-spin" : ""}
-  />
-  {loading ? "Refreshing..." : "Refresh"}
-</button>
+          type="button"
+          onClick={fetchDashboardData}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
       </div>
 
       {error && (

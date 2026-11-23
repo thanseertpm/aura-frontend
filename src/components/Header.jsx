@@ -609,7 +609,7 @@ export default function Header() {
                   aria-label="Open your dashboard"
                   title={user.username || "My account"}
                 >
-                  {(user.username?.trim()?.charAt(0) || "?").toUpperCase()}
+                  {user.username?.match(/\p{L}/u)?.[0]?.toUpperCase() || "A"}
                 </Link>
               </div>
             ) : (

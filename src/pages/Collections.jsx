@@ -13,6 +13,7 @@ import ProductCard from "../components/ProductCard";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 import api from "../services/api";
+import Toast from "../components/Toast";
 
 const formatPrice = (price) =>
   new Intl.NumberFormat("en-IN", {
@@ -84,6 +85,19 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [busyWishlistId, setBusyWishlistId] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  };
+
+  const hideToast = () => setToast(null);
 
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || "",
@@ -312,7 +326,37 @@ export default function Products() {
             : lowest,
         null,
       );
+  const handleWishlist = async (product, variantId) => {
+    if (!variantId) {
+      showToast("Please select an available product option.", "warning");
+      return;
+    }
 
+    const wasWishlisted = Boolean(isWishlisted(variantId));
+
+    setBusyWishlistId(product.id);
+
+    try {
+      await toggleWishlist(variantId);
+
+      showToast(
+        wasWishlisted
+          ? "Product removed from wishlist."
+          : "Product added to wishlist.",
+        "success",
+      );
+    } catch (err) {
+      showToast(
+        err.response?.data?.message ||
+          err.response?.data?.detail ||
+          err.message ||
+          "Unable to update wishlist. Please try again.",
+        "error",
+      );
+    } finally {
+      setBusyWishlistId(null);
+    }
+  };
   const totalPages = Math.ceil(pagination.count / pagination.page_size);
 
   return (
@@ -321,122 +365,119 @@ export default function Products() {
       <div className=" w-full  px-[15px] pt-5 pb-12 sm:px-11  sm:pb-[70px] ">
         {/* Toolbar */}
         {/* Toolbar */}
-<div className="mb-5 flex flex-wrap items-center justify-between gap-4 border-b border-[#eeece8] pb-4 sm:mb-6 sm:pb-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4 border-b border-[#eeece8] pb-4 sm:mb-6 sm:pb-5">
+          {/* Mobile filter button */}
+          <button
+            type="button"
+            className="inline-flex min-h-[36px] items-center gap-2 rounded-[3px] border border-[#e5e2dc] bg-white px-3 text-xs text-[#292824] transition-colors hover:border-[#876c4b] sm:hidden"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal size={16} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#876c4b] px-1 text-[10px] text-white">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-  {/* Mobile filter button */}
-  <button
-    type="button"
-    className="inline-flex min-h-[36px] items-center gap-2 rounded-[3px] border border-[#e5e2dc] bg-white px-3 text-xs text-[#292824] transition-colors hover:border-[#876c4b] sm:hidden"
-    onClick={() => setFiltersOpen((open) => !open)}
-  >
-    <SlidersHorizontal size={16} />
-    Filters
+          {/* Heading */}
+          <div className="order-3 w-full text-center sm:order-1 sm:w-auto sm:text-left">
+            <span className="block text-[10px] font-bold tracking-[3px] text-[#876c4b]">
+              AURA FASHIONS
+            </span>
 
-    {activeFilterCount > 0 && (
-      <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#876c4b] px-1 text-[10px] text-white">
-        {activeFilterCount}
-      </span>
-    )}
-  </button>
+            <h1 className="title-font my-2 text-[25px] font-normal leading-tight text-[#22211f] sm:text-[30px]">
+              COLLECTIONS
+            </h1>
 
-  {/* Heading */}
-  <div className="order-3 w-full text-center sm:order-1 sm:w-auto sm:text-left">
-    <span className="block text-[10px] font-bold tracking-[3px] text-[#876c4b]">
-      AURA FASHIONS
-    </span>
+            <p className="text-[11px] text-[#77746e]">
+              {loading
+                ? "Loading products..."
+                : `${pagination.count} ${
+                    pagination.count === 1 ? "Product Found" : "Products Found"
+                  }`}
+            </p>
+          </div>
 
-    <h1 className="title-font my-2 text-[25px] font-normal leading-tight text-[#22211f] sm:text-[30px]">
-      COLLECTIONS
-    </h1>
+          {/* Search and Sort */}
+          <div className="order-2 flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+            {/* Search */}
+            <div className="flex h-[39px] w-full items-center gap-2 rounded-[3px] border border-[#e7e3dc] bg-white px-3 text-[#8b867e] transition-colors focus-within:border-[#876c4b] sm:w-[220px] lg:w-[250px]">
+              <Search size={16} className="shrink-0" />
 
-    <p className="text-[11px] text-[#77746e]">
-      {loading
-        ? "Loading products..."
-        : `${pagination.count} ${
-            pagination.count === 1 ? "Product Found" : "Products Found"
-          }`}
-    </p>
-  </div>
+              <input
+                type="search"
+                placeholder="Search collection..."
+                value={searchTerm}
+                onChange={(event) => {
+                  const value = event.target.value;
 
-  {/* Search and Sort */}
-  <div className="order-2 flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+                  setSearchTerm(value);
+                  setPage(1);
 
-    {/* Search */}
-    <div className="flex h-[39px] w-full items-center gap-2 rounded-[3px] border border-[#e7e3dc] bg-white px-3 text-[#8b867e] transition-colors focus-within:border-[#876c4b] sm:w-[220px] lg:w-[250px]">
-      <Search size={16} className="shrink-0" />
+                  const nextParams = new URLSearchParams(searchParams);
 
-      <input
-        type="search"
-        placeholder="Search collection..."
-        value={searchTerm}
-        onChange={(event) => {
-          const value = event.target.value;
+                  if (value.trim()) {
+                    nextParams.set("search", value);
+                  } else {
+                    nextParams.delete("search");
+                  }
 
-          setSearchTerm(value);
-          setPage(1);
+                  setSearchParams(nextParams, { replace: true });
+                }}
+                className="w-full min-w-0 border-0 bg-transparent p-0 text-xs text-[#22211f] outline-none placeholder:text-[#a09b93]"
+              />
 
-          const nextParams = new URLSearchParams(searchParams);
+              {searchTerm && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="flex shrink-0 items-center justify-center bg-transparent p-1 text-[#77746e] hover:text-[#876c4b]"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPage(1);
 
-          if (value.trim()) {
-            nextParams.set("search", value);
-          } else {
-            nextParams.delete("search");
-          }
+                    const nextParams = new URLSearchParams(searchParams);
+                    nextParams.delete("search");
+                    setSearchParams(nextParams, { replace: true });
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
-          setSearchParams(nextParams, { replace: true });
-        }}
-        className="w-full min-w-0 border-0 bg-transparent p-0 text-xs text-[#22211f] outline-none placeholder:text-[#a09b93]"
-      />
+            {/* Sort */}
+            <div className="flex h-[39px] items-center justify-between gap-2 rounded-[3px] border border-[#e7e3dc] bg-white px-3 sm:w-[190px]">
+              <span className="flex shrink-0 items-center gap-2 text-[11px] text-[#77746e]">
+                <ArrowDownWideNarrow size={15} className="text-[#876c4b]" />
+                Sort by
+              </span>
 
-      {searchTerm && (
-        <button
-          type="button"
-          aria-label="Clear search"
-          className="flex shrink-0 items-center justify-center bg-transparent p-1 text-[#77746e] hover:text-[#876c4b]"
-          onClick={() => {
-            setSearchTerm("");
-            setPage(1);
+              <div className="relative min-w-0 flex-1">
+                <select
+                  value={sortBy}
+                  onChange={(event) => {
+                    setSortBy(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full cursor-pointer appearance-none bg-transparent py-1 pr-5 text-right text-[11px] font-medium text-[#292824] outline-none"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                </select>
 
-            const nextParams = new URLSearchParams(searchParams);
-            nextParams.delete("search");
-            setSearchParams(nextParams, { replace: true });
-          }}
-        >
-          <X size={14} />
-        </button>
-      )}
-    </div>
-
-    {/* Sort */}
-    <div className="flex h-[39px] items-center justify-between gap-2 rounded-[3px] border border-[#e7e3dc] bg-white px-3 sm:w-[190px]">
-      <span className="flex shrink-0 items-center gap-2 text-[11px] text-[#77746e]">
-        <ArrowDownWideNarrow size={15} className="text-[#876c4b]" />
-        Sort by
-      </span>
-
-      <div className="relative min-w-0 flex-1">
-        <select
-          value={sortBy}
-          onChange={(event) => {
-            setSortBy(event.target.value);
-            setPage(1);
-          }}
-          className="w-full cursor-pointer appearance-none bg-transparent py-1 pr-5 text-right text-[11px] font-medium text-[#292824] outline-none"
-        >
-          <option value="newest">Newest First</option>
-          <option value="price-low">Price: Low to High</option>
-          <option value="price-high">Price: High to Low</option>
-          <option value="rating">Top Rated</option>
-        </select>
-
-        <ChevronDown
-          size={14}
-          className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-[#77746e]"
-        />
-      </div>
-    </div>
-  </div>
-</div>
+                <ChevronDown
+                  size={14}
+                  className="pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 text-[#77746e]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Main layout */}
         <div className="grid grid-cols-1 items-start gap-6 min-[701px]:grid-cols-[205px_minmax(0,1fr)] min-[701px]:gap-6 min-[1101px]:grid-cols-[235px_minmax(0,1fr)] min-[1101px]:gap-[34px]">
@@ -710,42 +751,42 @@ export default function Products() {
 
             {/* Brand filter */}
             {/* Brand filter */}
-{brands.length > 0 && (
-  <div className="border-b border-[#eeece8] py-5">
-    <button
-      type="button"
-      onClick={() => setBrandsOpen((open) => !open)}
-      aria-expanded={brandsOpen}
-      className="flex w-full items-center justify-between gap-3 text-left"
-    >
-      <span className="text-xs font-bold text-[#262522]">
-        Brands
-      </span>
+            {brands.length > 0 && (
+              <div className="border-b border-[#eeece8] py-5">
+                <button
+                  type="button"
+                  onClick={() => setBrandsOpen((open) => !open)}
+                  aria-expanded={brandsOpen}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className="text-xs font-bold text-[#262522]">
+                    Brands
+                  </span>
 
-      <ChevronDown
-        size={17}
-        className={`shrink-0 text-[#77746e] transition-transform duration-300 ${
-          brandsOpen ? "rotate-180" : ""
-        }`}
-      />
-    </button>
+                  <ChevronDown
+                    size={17}
+                    className={`shrink-0 text-[#77746e] transition-transform duration-300 ${
+                      brandsOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-    {brandsOpen && (
-      <div className="mt-5 flex flex-col gap-[13px]">
-        {brands.map((brand) => (
-          <label
-            className="flex min-w-0 cursor-pointer items-center gap-[10px] text-xs text-[#66635d]"
-            key={brand}
-          >
-            <input
-              type="checkbox"
-              checked={selectedBrands.includes(brand)}
-              onChange={() => toggleBrand(brand)}
-              className="peer sr-only"
-            />
+                {brandsOpen && (
+                  <div className="mt-5 flex flex-col gap-[13px]">
+                    {brands.map((brand) => (
+                      <label
+                        className="flex min-w-0 cursor-pointer items-center gap-[10px] text-xs text-[#66635d]"
+                        key={brand}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedBrands.includes(brand)}
+                          onChange={() => toggleBrand(brand)}
+                          className="peer sr-only"
+                        />
 
-            <span
-              className="
+                        <span
+                          className="
                 relative inline-flex h-[15px] w-[15px] shrink-0
                 items-center justify-center rounded-[2px]
                 border border-[#d6d2ca] bg-white
@@ -760,17 +801,17 @@ export default function Products() {
                 peer-focus-visible:outline-offset-[3px]
                 peer-focus-visible:outline-[#b9a58d]
               "
-            />
+                        />
 
-            <span className="min-w-0 [overflow-wrap:anywhere]">
-              {brand}
-            </span>
-          </label>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+                        <span className="min-w-0 [overflow-wrap:anywhere]">
+                          {brand}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Availability filter */}
             <div className="border-b border-[#eeece8] py-5">
@@ -870,6 +911,7 @@ export default function Products() {
                 <div className="grid grid-cols-2 gap-x-[9px] gap-y-[22px] min-[381px]:gap-x-3 min-[381px]:gap-y-6 min-[701px]:gap-x-[18px] min-[701px]:gap-y-[25px] min-[1101px]:grid-cols-5 min-[1101px]:gap-x-5 min-[1101px]:gap-y-[30px]">
                   {products.map((product) => {
                     const startingVariant = getStartingVariant(product);
+
                     const availableStockVariant =
                       getAvailableStockVariant(product);
 
@@ -884,7 +926,10 @@ export default function Products() {
                     const image = getImage(product);
                     const categorySlug = getCategorySlug(product);
 
-                    const wished = isWishlisted(product.id);
+                    // Wishlist is now based on the selected variant ID.
+                    const wished = availableStockVariant
+                      ? Boolean(isWishlisted(availableStockVariant.id))
+                      : false;
 
                     const formattedProduct = {
                       id: product.id,
@@ -922,14 +967,16 @@ export default function Products() {
                         key={product.id}
                         product={formattedProduct}
                         isWishlisted={wished}
-                        onToggleWishlist={() => toggleWishlist(product.id)}
+                        onToggleWishlist={(variantId) =>
+                          handleWishlist(product, variantId)
+                        }
                         onAddToCart={(cardProduct) => {
                           if (
                             !Number.isInteger(Number(cardProduct.variant_id))
                           ) {
-                            console.error(
-                              "Invalid variant ID:",
-                              cardProduct.variant_id,
+                            showToast(
+                              "This product option is currently unavailable.",
+                              "warning",
                             );
                             return;
                           }
@@ -937,7 +984,7 @@ export default function Products() {
                           return addToCart(Number(cardProduct.variant_id), 1);
                         }}
                         cartLoading={cartLoading}
-                        wishlistLoading={false}
+                        wishlistLoading={busyWishlistId === product.id}
                         disabled={!hasStock}
                       />
                     );
@@ -996,6 +1043,15 @@ export default function Products() {
           </section>
         </div>
       </div>
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </main>
   );
 }

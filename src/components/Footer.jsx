@@ -34,16 +34,16 @@ const companyLinks = [
 function FooterLinks({ title, links }) {
   return (
     <div className="min-w-0">
-      <h3 className="mb-4 text-[12px] font-bold leading-[1.4] text-[#202020]">
+      <h3 className="mb-4 text-[16px] font-bold leading-[1.4] text-[#202020]">
         {title}
       </h3>
 
-      <ul className="m-0 flex list-none flex-col gap-[10px] p-0 sm:gap-0">
+      <ul className="flex list-none flex-col gap-[10px] sm:gap-2">
         {links.map((link) => (
-          <li key={link.label} className="m-0 p-0">
+          <li key={link.label}>
             <Link
               to={link.href}
-              className="group inline-flex max-w-full items-center gap-1 text-[10px] leading-[1.5] text-[#686868] no-underline transition-colors duration-[180ms] hover:text-[#a78656] sm:text-[11px]"
+              className="group inline-flex max-w-full items-center gap-1 text-[16px] leading-[1.5] text-[#686868] no-underline transition-colors duration-[180ms] hover:text-[#a78656] sm:text-[14px]"
             >
               {link.label}
               <ArrowUpRight
@@ -92,7 +92,7 @@ export default function Footer() {
           sm:px-11 sm:py-[35px]
           md:grid-cols-2
           lg:mx-0 lg:w-full
-          lg:grid-cols-[1.35fr_0.8fr_1.25fr_1fr_1.25fr]
+          lg:grid-cols-4
           lg:gap-x-[clamp(20px,3vw,54px)]
           lg:gap-y-9 lg:py-4
           min-[761px]:max-[1100px]:grid-cols-[1.2fr_0.8fr_1.2fr_1fr]
@@ -172,7 +172,7 @@ export default function Footer() {
         {/* Navigation columns */}
         <FooterLinks title="Shop" links={shopLinks} />
 
-        <FooterLinks title="Customer Service" links={serviceLinks} />
+        {/* <FooterLinks title="Customer Service" links={serviceLinks} /> */}
 
         <FooterLinks title="Company" links={companyLinks} />
 
@@ -181,34 +181,34 @@ export default function Footer() {
           className="min-w-0 break-words min-[761px]:max-[1100px]:col-span-2 lg:col-span-1"
           style={{ overflowWrap: "anywhere" }}
         >
-          <h3 className="mb-4 text-[12px] font-bold leading-[1.4] text-[#202020]">
+          <h3 className="mb-4 text-[16px] font-bold leading-[1.4] text-[#202020]">
             Contact Us
           </h3>
 
-          <div className="mt-[18px] flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-2">
             {shop?.phone && (
               <a
-                className="flex items-start gap-[9px] text-[10px] leading-[1.7] text-[#686868] no-underline transition-colors hover:text-[#a78656] sm:text-[11px]"
+                className="flex items-center gap-[9px] text-[14px] leading-[1.7] text-[#686868] no-underline transition-colors hover:text-[#a78656] sm:text-[14px]"
                 href={`tel:${shop.phone}`}
               >
-                <Phone size={14} className="mt-0.5 shrink-0 text-[#393939]" />
+                <Phone size={16} className="mt-0.5 shrink-0 text-[#393939]" />
                 <span>{shop.phone}</span>
               </a>
             )}
 
             {shop?.email && (
               <a
-                className="flex items-start gap-[9px] text-[10px] leading-[1.7] text-[#686868] no-underline transition-colors hover:text-[#a78656] sm:text-[11px]"
+                className="flex items-center gap-[9px] text-[10px] leading-[1.7] text-[#686868] no-underline transition-colors hover:text-[#a78656] sm:text-[14px]"
                 href={`mailto:${shop.email}`}
               >
-                <Mail size={14} className="mt-0.5 shrink-0 text-[#393939]" />
+                <Mail size={16} className="mt-0.5 shrink-0 text-[#393939]" />
                 <span>{shop.email}</span>
               </a>
             )}
 
             {shop?.location && (
-              <div className="flex items-start gap-[9px] text-[10px] leading-[1.7] text-[#686868] sm:text-[11px]">
-                <MapPin size={14} className="mt-0.5 shrink-0 text-[#393939]" />
+              <div className="flex items-center gap-[9px] text-[10px] leading-[1.7] text-[#686868] sm:text-[14px]">
+                <MapPin size={16} className="mt-0.5 shrink-0 text-[#393939]" />
 
                 {shop.direction_link ? (
                   <a

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import Toast from "../components/Toast";
 import { useCart } from "../context/CartContext";
-import api, { refreshCSRFToken } from "../services/api";
+import api from "../services/api";
 
 const formatPrice = (price) =>
   new Intl.NumberFormat("en-IN", {
@@ -29,6 +29,7 @@ export default function CartPage() {
   // Toast helpers
   const showToast = useCallback((message, type = "success") => {
     setToast({
+      id: Date.now(),
       message,
       type,
       duration: 3000,
@@ -114,7 +115,7 @@ export default function CartPage() {
     try {
       await updateCartQuantity(item.id, nextQuantity);
 
-      showToast("Cart quantity updated successfully.", "success");
+      showToast("Cart quantity updated", "success");
     } catch (err) {
       showToast(
         err.response?.data?.message ??
@@ -179,7 +180,7 @@ export default function CartPage() {
         mode: "cart",
       });
 
-      const session = response.data.data;
+      const session = response.data?.data;
 
       if (!session?.id) {
         throw new Error("Unable to start checkout.");
@@ -209,6 +210,7 @@ export default function CartPage() {
 
         {toast && (
           <Toast
+            key={toast.id}
             message={toast.message}
             type={toast.type}
             duration={toast.duration}
@@ -244,14 +246,15 @@ export default function CartPage() {
           Continue Shopping
         </Link>
 
-        {toast && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            duration={toast.duration}
-            onClose={hideToast}
-          />
-        )}
+{toast && (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    duration={toast.duration}
+    onClose={hideToast}
+  />
+)}
       </main>
     );
   }
@@ -399,7 +402,11 @@ export default function CartPage() {
                           <button
                             type="button"
                             aria-label={`Increase quantity of ${title}`}
-                            disabled={isUpdating || isRemoving || quantity >= Number(item.stock ?? 0)}
+                            disabled={
+                              isUpdating ||
+                              isRemoving ||
+                              quantity >= Number(item.stock ?? 0)
+                            }
                             onClick={() =>
                               handleQuantityChange(item, quantity + 1)
                             }
@@ -440,13 +447,10 @@ export default function CartPage() {
             <h2 className="mb-6 text-xl font-medium">Order Summary</h2>
 
             <div className="my-4 flex items-start justify-between gap-4 text-sm">
-              <span>
-                Subtotal 
-              </span>
+              <span>Subtotal</span>
 
               <span className="font-medium">{formatPrice(subtotal)}</span>
             </div>
-
 
             <div className="my-4 flex items-start justify-between gap-4 text-sm">
               <span>Shipping</span>
@@ -578,20 +582,20 @@ export default function CartPage() {
                 );
               })}
             </div>
-
           </div>
         </div>
       )}
 
       {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          duration={toast.duration}
-          onClose={hideToast}
-        />
-      )}
+{toast && (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    duration={toast.duration}
+    onClose={hideToast}
+  />
+)}
     </main>
   );
 }

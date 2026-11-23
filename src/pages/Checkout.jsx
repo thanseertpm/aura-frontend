@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import Confirm from "../components/Confirm";
+import Toast from "../components/Toast";
 import { useCart } from "../context/CartContext";
 
 import api from "../services/api";
@@ -34,6 +36,64 @@ const emptyAddress = {
   country: "India",
   address_type: "home",
   is_default: false,
+};
+
+const validateAddress = (address) => {
+  const errors = {};
+
+  const fullName = (address.full_name || "").trim();
+  const phone = (address.phone || "").trim();
+  const addressLine1 = (address.address_line1 || "").trim();
+  const addressLine2 = address.address_line2 || "";
+  const landmark = address.landmark || "";
+  const city = (address.city || "").trim();
+  const state = (address.state || "").trim();
+  const postalCode = (address.postal_code || "").trim();
+  const country = (address.country || "").trim();
+
+  if (fullName.length < 2) {
+    errors.full_name = "Full name must contain at least 2 characters.";
+  } else if (!/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]*$/.test(fullName)) {
+    errors.full_name = "Enter a valid name using letters only.";
+  }
+
+  if (!/^(?:\+91)?[6-9]\d{9}$/.test(phone)) {
+    errors.phone = "Enter a valid 10-digit Indian mobile number.";
+  }
+
+  if (addressLine1.length < 5) {
+    errors.address_line1 = "Address must contain at least 5 characters.";
+  }
+
+  if (addressLine2.length > 255) {
+    errors.address_line2 = "Address line 2 cannot exceed 255 characters.";
+  }
+
+  if (landmark.length > 150) {
+    errors.landmark = "Landmark cannot exceed 150 characters.";
+  }
+
+  if (city.length < 2 || !/^[A-Za-zÀ-ÿ .'-]+$/.test(city)) {
+    errors.city = "Enter a valid city name.";
+  }
+
+  if (state.length < 2 || !/^[A-Za-zÀ-ÿ .'-]+$/.test(state)) {
+    errors.state = "Enter a valid state name.";
+  }
+
+  if (!/^[1-9]\d{5}$/.test(postalCode)) {
+    errors.postal_code = "Enter a valid 6-digit Indian PIN code.";
+  }
+
+  if (!country) {
+    errors.country = "Country is required.";
+  }
+
+  if (!["home", "work", "other"].includes(address.address_type)) {
+    errors.address_type = "Please select a valid address type.";
+  }
+
+  return errors;
 };
 
 const formatPrice = (price) =>
@@ -90,6 +150,21 @@ export default function CheckoutPage() {
   const { refreshCart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [toast, setToast] = useState(null);
+  const [addressErrors, setAddressErrors] = useState({});
+
+  const showToast = useCallback((message, type = "success") => {
+    setToast({
+      id: Date.now(),
+      message,
+      type,
+      duration: 3000,
+    });
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToast(null);
+  }, []);
 
   const sessionId = searchParams.get("session_id");
 
@@ -110,6 +185,8 @@ export default function CheckoutPage() {
 
   const [error, setError] = useState("");
   const [successOrder, setSuccessOrder] = useState(null);
+
+  const [selectedAddress, setSelectedAddress] = useState(null);
 
   const [paymentMethod, setPaymentMethod] = useState("razorpay");
 
@@ -216,10 +293,12 @@ export default function CheckoutPage() {
     setAddressForm(emptyAddress);
     setEditingAddressId(null);
     setShowAddressForm(false);
+    setAddressErrors({});
   };
 
   const startAddAddress = () => {
     setError("");
+    setAddressErrors({});
 
     setAddressForm({
       ...emptyAddress,
@@ -232,6 +311,7 @@ export default function CheckoutPage() {
 
   const startEditAddress = (address) => {
     setError("");
+    setAddressErrors({});
 
     setAddressForm({
       ...emptyAddress,
@@ -249,17 +329,42 @@ export default function CheckoutPage() {
       ...current,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    setAddressErrors((current) => {
+      const updated = { ...current };
+      delete updated[name];
+      return updated;
+    });
   };
 
   const handleSaveAddress = async (event) => {
     event.preventDefault();
 
+    const validationErrors = validateAddress(addressForm);
+
+    setAddressErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     setSavingAddress(true);
     setError("");
+
+    const wasEditing = Boolean(editingAddressId);
 
     try {
       const payload = {
         ...addressForm,
+        full_name: addressForm.full_name.trim(),
+        phone: addressForm.phone.trim(),
+        address_line1: addressForm.address_line1.trim(),
+        address_line2: addressForm.address_line2.trim(),
+        landmark: addressForm.landmark.trim(),
+        city: addressForm.city.trim(),
+        state: addressForm.state.trim(),
+        postal_code: addressForm.postal_code.trim(),
+        country: addressForm.country.trim(),
         is_default: addressForm.is_default || addresses.length === 0,
       };
 
@@ -269,7 +374,7 @@ export default function CheckoutPage() {
 
       const savedAddress = getPayload(response);
 
-      const list = await refreshAddresses();
+      await refreshAddresses();
 
       setSelectedAddressId(String(savedAddress.id));
 
@@ -277,12 +382,14 @@ export default function CheckoutPage() {
 
       // Select the address step after saving.
       setActiveStep(1);
-
-      if (!list.length) {
-        setError("Address was saved, but no addresses were returned.");
-      }
+      showToast(
+        editingAddressId
+          ? "Address updated successfully."
+          : "Address added successfully.",
+        "success",
+      );
     } catch (err) {
-      setError(getErrorMessage(err));
+      showToast(getErrorMessage(err), "error");
     } finally {
       setSavingAddress(false);
     }
@@ -298,18 +405,15 @@ export default function CheckoutPage() {
       await refreshAddresses();
 
       setSelectedAddressId(String(address.id));
+      showToast("Default address updated", "success");
     } catch (err) {
-      setError(getErrorMessage(err));
+      showToast(getErrorMessage(err), "error");
     } finally {
       setSettingDefaultId(null);
     }
   };
 
   const handleDeleteAddress = async (address) => {
-    if (!window.confirm("Are you sure you want to remove this address?")) {
-      return;
-    }
-
     setDeletingAddressId(address.id);
     setError("");
 
@@ -327,8 +431,10 @@ export default function CheckoutPage() {
       if (editingAddressId === address.id) {
         resetAddressForm();
       }
+      setSelectedAddress(null);
+      showToast("Address removed", "success");
     } catch (err) {
-      setError(getErrorMessage(err));
+      showToast(getErrorMessage(err), "error");
     } finally {
       setDeletingAddressId(null);
     }
@@ -338,7 +444,7 @@ export default function CheckoutPage() {
     const code = couponCode.trim().toUpperCase();
 
     if (!code) {
-      setError("Please enter a coupon code.");
+      showToast("Please enter a coupon code", "warning");
       return;
     }
 
@@ -364,9 +470,10 @@ export default function CheckoutPage() {
 
       setAppliedCoupon(coupon);
       setCouponCode(coupon.code);
+      showToast("Coupon applied", "success");
     } catch (err) {
       setAppliedCoupon(null);
-      setError(getErrorMessage(err));
+      showToast(getErrorMessage(err), "error");
     } finally {
       setApplyingCoupon(false);
     }
@@ -376,6 +483,7 @@ export default function CheckoutPage() {
     setAppliedCoupon(null);
     setCouponCode("");
     setError("");
+    showToast("Coupon removed successfully.", "success");
   };
 
   const handlePlaceOrder = async () => {
@@ -895,7 +1003,7 @@ export default function CheckoutPage() {
 
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteAddress(address)}
+                                    onClick={() => setSelectedAddress(address)}
                                     disabled={deletingAddressId === address.id}
                                     className="inline-flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-50"
                                   >
@@ -938,6 +1046,25 @@ export default function CheckoutPage() {
                       </button>
                     </div>
 
+                    {Object.values(addressErrors).some(Boolean) && (
+                      <div
+                        role="alert"
+                        className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4"
+                      >
+                        <p className="mb-2 text-sm font-semibold text-red-700">
+                          Please correct the following fields:
+                        </p>
+
+                        <ul className="list-inside list-disc space-y-1 text-xs text-red-600">
+                          {Object.entries(addressErrors)
+                            .filter(([, message]) => message)
+                            .map(([field, message]) => (
+                              <li key={field}>{message}</li>
+                            ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelClass}>Full name *</label>
@@ -962,7 +1089,6 @@ export default function CheckoutPage() {
                           onChange={handleAddressField}
                           className={inputClass}
                           placeholder="Enter phone number"
-                          maxLength={13}
                           autoComplete="tel"
                           required
                         />
@@ -1116,23 +1242,6 @@ export default function CheckoutPage() {
                     </div>
                   </form>
                 )}
-
-                {!showAddressForm && addresses.length > 0 && (
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      type="button"
-                      disabled={!selectedAddressId}
-                      onClick={() => {
-                        setError("");
-                        setActiveStep(2);
-                      }}
-                      className={primaryButton}
-                    >
-                      Continue to summary
-                      <ArrowRight size={17} />
-                    </button>
-                  </div>
-                )}
               </section>
             )}
 
@@ -1154,10 +1263,6 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                   </div>
-
-                  <span className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold uppercase text-gray-600">
-                    {session?.mode === "buy_now" ? "Buy Now" : "Cart"}
-                  </span>
                 </div>
 
                 <div className="divide-y divide-gray-100">
@@ -1215,26 +1320,6 @@ export default function CheckoutPage() {
                       </div>
                     </article>
                   ))}
-                </div>
-
-                <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-gray-100 pt-5">
-                  <button
-                    type="button"
-                    onClick={() => setActiveStep(1)}
-                    className={secondaryButton}
-                  >
-                    <ArrowLeft size={16} />
-                    Back
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveStep(3)}
-                    className={primaryButton}
-                  >
-                    Continue to payment
-                    <ArrowRight size={17} />
-                  </button>
                 </div>
               </section>
             )}
@@ -1374,45 +1459,8 @@ export default function CheckoutPage() {
                     Change address
                   </button>
                 </div>
-
-                <div className="mt-6 flex flex-wrap justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveStep(2)}
-                    disabled={placingOrder}
-                    className={secondaryButton}
-                  >
-                    <ArrowLeft size={16} />
-                    Back
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handlePlaceOrder}
-                    disabled={placingOrder || !selectedAddressId}
-                    className={primaryButton}
-                  >
-                    {placingOrder ? (
-                      <>
-                        <LoaderCircle size={17} className="animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        {paymentMethod === "cod" ? "Place order" : "Pay now"}
-                        <ArrowRight size={17} />
-                      </>
-                    )}
-                  </button>
-                </div>
               </section>
             )}
-
-            {/* Security */}
-            <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
-              <ShieldCheck size={16} />
-              Your order is processed securely.
-            </div>
           </div>
 
           {/* RIGHT: PRICE DETAILS */}
@@ -1548,10 +1596,10 @@ export default function CheckoutPage() {
                     setError("");
                     setActiveStep(2);
                   }}
-                  disabled={!selectedAddressId}
+                  disabled={!selectedAddressId || showAddressForm}
                   className={`${primaryButton} mt-7 w-full`}
                 >
-                  Continue
+                  Continue to summary
                   <ArrowRight size={17} />
                 </button>
               )}
@@ -1574,7 +1622,11 @@ export default function CheckoutPage() {
                   disabled={placingOrder || !selectedAddressId}
                   className={`${primaryButton} mt-7 w-full`}
                 >
-                  {placingOrder ? "Processing..." : "Place order"}
+                  {placingOrder
+                    ? "Processing..."
+                    : paymentMethod === "razorpay"
+                      ? "Pay & Place Order"
+                      : "Place Order"}
                 </button>
               )}
 
@@ -1598,6 +1650,30 @@ export default function CheckoutPage() {
           </aside>
         </div>
       </div>
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
+      {selectedAddress && (
+        <Confirm
+          title="Remove Address"
+          message={`Are you sure you want to remove the delivery address for ${selectedAddress.full_name}?`}
+          confirmText="Remove"
+          onConfirm={() => handleDeleteAddress(selectedAddress)}
+          onCancel={() => {
+            if (deletingAddressId !== selectedAddress.id) {
+              setSelectedAddress(null);
+            }
+          }}
+          loading={deletingAddressId === selectedAddress.id}
+          danger={true}
+        />
+      )}
     </main>
   );
 }
