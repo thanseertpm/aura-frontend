@@ -2037,7 +2037,7 @@ export default function ProductManagement() {
         {/* PAGINATION */}
 
         {!loading && count > 0 && (
-          <div className="flex flex-col justify-between gap-3 border-t px-5 py-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col justify-between gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center">
             <p className="text-xs text-gray-500">
               Page {page} of {totalPages}
             </p>
