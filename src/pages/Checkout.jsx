@@ -1662,6 +1662,7 @@ export default function CheckoutPage() {
       {selectedAddress && (
         <Confirm
           title="Remove Address"
+          open={Boolean(selectedAddress)}
           message={`Are you sure you want to remove the delivery address for ${selectedAddress.full_name}?`}
           confirmText="Remove"
           onConfirm={() => handleDeleteAddress(selectedAddress)}

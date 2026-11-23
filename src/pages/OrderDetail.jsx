@@ -530,7 +530,9 @@ const OrderDetail = () => {
                       <button
                         type="button"
                         disabled={actionLoading}
-                        onClick={() => setSelectedCancelOrder(order)}
+                        onClick={() => {
+  setSelectedCancelOrder(order);
+}}
                         className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
                       >
                         {actionLoading ? (
@@ -1241,6 +1243,7 @@ const OrderDetail = () => {
       {selectedCancelOrder && (
         <Confirm
           title="Cancel Order"
+          open={Boolean(selectedCancelOrder)}
           message={`Are you sure you want to cancel order #${selectedCancelOrder.order_number}? This action cannot be undone.`}
           confirmText="Cancel Order"
           onConfirm={handleCancelOrder}
