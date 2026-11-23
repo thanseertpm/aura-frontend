@@ -2076,7 +2076,7 @@ export default function ProductManagement() {
           <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
             {/* HEADER */}
 
-            <div className="flex items-center justify-between border-b px-6 py-4">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
                   {editingId ? "Edit Product" : "Create Product"}
@@ -2194,7 +2194,7 @@ export default function ProductManagement() {
                    PRODUCT IMAGES
                 ------------------------------------------------- */}
 
-                <div className="space-y-4 border-t pt-5">
+                <div className="space-y-4 border-t border-gray-100 pt-5">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900">
@@ -2308,7 +2308,7 @@ export default function ProductManagement() {
 
               {/* FOOTER */}
 
-              <div className="flex justify-end gap-3 border-t bg-gray-50 px-6 py-4">
+              <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
                 <button
                   type="button"
                   onClick={closeModal}
