@@ -22,7 +22,6 @@ const refreshExcludedUrls = [
   "/accounts/otp/",
   "/accounts/password/reset/",
   "/accounts/logout/",
-  "/accounts/password/change/",
   REFRESH_URL,
 ];
 
