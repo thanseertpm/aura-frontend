@@ -127,14 +127,14 @@ const Testimonials = () => {
           [4, 5].includes(Number(item.rating)),
         );
 
-        console.log("Real reviews:", filteredReviews.length);
+
 
         if (filteredReviews.length < 10) {
-          console.log("Displaying dummy reviews only");
+
 
           setReviews(dummyReviews);
         } else {
-          console.log("Displaying real reviews only");
+
 
           setReviews(
             filteredReviews.map((item) => ({
